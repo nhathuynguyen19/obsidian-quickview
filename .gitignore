@@ -1,2 +1,9 @@
+# Python cache (thêm vào .gitignore)
 __pycache__/
-tests/__pycache__
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Test artifact (nếu không dùng)
+tests/test_render_markdown.js
