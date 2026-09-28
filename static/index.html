@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obsidian QuickView</title>
+  <link rel="stylesheet" href="/static/github-dark.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="vault-title">
+        <svg class="vault-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+        <span>Obsidian QuickView</span>
+      </div>
+      <button id="btn-theme" class="btn" title="Đổi giao diện Sáng / Tối" style="padding: 4px 6px;">🌓</button>
+    </div>
+
+    <!-- Quick Switcher trigger -->
+    <div class="quick-search-trigger" id="btn-trigger-search">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>Tìm kiếm ghi chú...</span>
+      </div>
+      <span class="shortcut-badge">Ctrl K</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" data-tab="tree">📁 Thư mục</div>
+      <div class="sidebar-tab" data-tab="recent">🕒 Gần đây</div>
+      <div class="sidebar-tab" data-tab="tags">🏷️ Tags</div>
+    </div>
+
+    <!-- Tab panes -->
+    <div id="pane-tree" class="tab-pane active">
+      <div id="tree-container">Đang tải danh mục...</div>
+    </div>
+
+    <div id="pane-recent" class="tab-pane">
+      <div id="recent-container">Đang tải ghi chú gần đây...</div>
+    </div>
+
+    <div id="pane-tags" class="tab-pane">
+      <div id="tags-container">Đang tải tags...</div>
+    </div>
+  </aside>
+
+  <!-- Main View Area -->
+  <main id="main">
+    <div class="top-navbar">
+      <div class="breadcrumb" id="note-breadcrumb">
+        <span>Chọn một ghi chú để bắt đầu xem</span>
+      </div>
+      <div class="nav-actions">
+        <button id="btn-copy-md" class="btn" title="Copy mã Markdown" style="display: none;">
+          📋 Copy MD
+        </button>
+        <button id="btn-quick-edit" class="btn" title="Sửa nhanh ghi chú này" style="display: none;">
+          ✏️ Sửa nhanh
+        </button>
+        <button id="btn-open-obsidian" class="btn btn-primary" title="Mở ghi chú này bằng Obsidian Desktop" style="display: none;">
+          💎 Mở trong Obsidian
+        </button>
+      </div>
+    </div>
+
+    <!-- Note Viewer -->
+    <div id="note-container">
+      <div class="empty-state" id="empty-state">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.3;">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <p style="font-size: 16px; font-weight: 500;">Chưa chọn ghi chú nào</p>
+        <p style="font-size: 13px;">Nhấn <kbd style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">Ctrl + K</kbd> để tìm kiếm tức thì hơn 3.500 ghi chú</p>
+      </div>
+
+      <div id="note-content-wrapper" style="display: none;">
+        <!-- Frontmatter box -->
+        <div id="note-frontmatter" class="frontmatter-box" style="display: none;"></div>
+
+        <!-- Rendered Markdown Body -->
+        <article id="note-body" class="markdown-body"></article>
+
+        <!-- Backlinks Drawer -->
+        <div id="note-backlinks" class="backlinks-section" style="display: none;">
+          <div class="backlinks-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            <span id="backlinks-count-label">Liên kết ngược (Backlinks)</span>
+          </div>
+          <div id="backlinks-list" class="backlinks-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Edit Panel -->
+    <div id="edit-container">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <span style="font-weight: 600; font-size: 14px;">Chế độ sửa nhanh (Ctrl+S để lưu)</span>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-cancel-edit" class="btn">Hủy</button>
+          <button id="btn-save-edit" class="btn btn-primary">💾 Lưu ghi chú</button>
+        </div>
+      </div>
+      <textarea id="edit-textarea" placeholder="Nhập nội dung markdown tại đây..."></textarea>
+    </div>
+  </main>
+
+  <!-- Quick Switcher Modal (Ctrl + K) -->
+  <div id="search-modal-backdrop" class="modal-backdrop">
+    <div class="search-modal">
+      <div class="search-input-wrapper">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="search-input" placeholder="Tìm theo tên note, nội dung hoặc #tag..." autocomplete="off">
+        <button id="btn-close-modal" class="btn" style="border: none; background: transparent; font-size: 16px; cursor: pointer;">✕</button>
+      </div>
+      <div id="search-results" class="search-results">
+        <!-- Search items injected dynamically -->
+      </div>
+      <div class="modal-footer">
+        <div class="key-guide">
+          <span><kbd class="shortcut-badge">↑↓</kbd> Di chuyển</span>
+          <span><kbd class="shortcut-badge">Enter</kbd> Mở ghi chú</span>
+          <span><kbd class="shortcut-badge">Esc</kbd> Đóng</span>
+        </div>
+        <span id="search-status-text">Gõ để tìm kiếm</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/marked.min.js"></script>
+  <script src="/static/highlight.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

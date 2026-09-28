@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# Obsidian QuickView Launcher
+# Starts the lightweight server if not running, and opens the app window instantly.
+
+set -e
+
+PORT=8765
+HOST="127.0.0.1"
+BASE_URL="http://${HOST}:${PORT}"
+REAL_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+DIR="$(cd "$(dirname "${REAL_SCRIPT}")/.." && pwd)"
+LOG_DIR="${HOME}/.cache/obsidian-quickview"
+LOG_FILE="${LOG_DIR}/server.log"
+PID_FILE="${LOG_DIR}/server.pid"
+
+mkdir -p "${LOG_DIR}"
+
+is_running() {
+  python3 -c "import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(0.2)
+try:
+    s.connect(('${HOST}', ${PORT}))
+    s.close()
+    sys.exit(0)
+except Exception:
+    sys.exit(1)" 2>/dev/null
+}
+
+start_server() {
+  if ! is_running; then
+    echo "⚡ Khởi động Obsidian QuickView server..."
+    setsid python3 "${DIR}/server.py" "${PORT}" </dev/null >> "${LOG_FILE}" 2>&1 &
+    SERVER_PID=$!
+    echo "${SERVER_PID}" > "${PID_FILE}"
+    disown "${SERVER_PID}" 2>/dev/null || true
+    
+    # Wait up to 5 seconds for server to be responsive
+    for i in {1..50}; do
+      if is_running; then
+        break
+      fi
+      sleep 0.1
+    done
+  fi
+}
+
+stop_server() {
+  if [ -f "${PID_FILE}" ]; then
+    PID=$(cat "${PID_FILE}")
+    if kill -0 "${PID}" 2>/dev/null; then
+      kill "${PID}" && echo "🛑 Đã dừng server (PID: ${PID})"
+      rm -f "${PID_FILE}"
+      return
+    fi
+  fi
+  # Fallback kill by port
+  fuser -k "${PORT}/tcp" 2>/dev/null && echo "🛑 Đã dừng server trên port ${PORT}" || echo "Server không chạy."
+}
+
+# Handle CLI options
+case "$1" in
+  --stop)
+    stop_server
+    exit 0
+    ;;
+  --restart)
+    stop_server
+    sleep 0.5
+    start_server
+    exit 0
+    ;;
+  --status)
+    if is_running; then
+      echo "🟢 Obsidian QuickView server đang chạy tại: ${BASE_URL}"
+    else
+      echo "⚪ Obsidian QuickView server chưa chạy."
+    fi
+    exit 0
+    ;;
+  --reindex)
+    start_server
+    echo "🔄 Đang cập nhật lại toàn bộ index..."
+    curl -s "${BASE_URL}/api/reindex?force=1" | python3 -m json.tool
+    exit 0
+    ;;
+  --help|-h)
+    echo "Obsidian QuickView - Trình xem note Obsidian siêu nhanh"
+    echo ""
+    echo "Cách dùng:"
+    echo "  obs-view              Mở ứng dụng"
+    echo "  obs-view <tên note>   Mở thẳng ghi chú tương ứng"
+    echo "  obs-view --reindex    Đánh lại toàn bộ chỉ mục"
+    echo "  obs-view --status     Kiểm tra trạng thái server"
+    echo "  obs-view --stop       Dừng server chạy ngầm"
+    echo "  obs-view --restart    Khởi động lại server"
+    exit 0
+    ;;
+esac
+
+# Start server if needed
+start_server
+
+TARGET_URL="${BASE_URL}"
+if [ -n "$1" ]; then
+  # Try to resolve path
+  TARGET_PATH=$(python3 -c "
+import sys, urllib.parse, urllib.request, json
+q = sys.argv[1]
+try:
+    url = '${BASE_URL}/api/resolve?target=' + urllib.parse.quote(q)
+    with urllib.request.urlopen(url, timeout=1) as resp:
+        data = json.loads(resp.read().decode())
+        if data.get('resolved_path'):
+            print(data['resolved_path'])
+            sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+" "$1" 2>/dev/null || true)
+
+  if [ -n "${TARGET_PATH}" ]; then
+    TARGET_URL="${BASE_URL}/?path=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "${TARGET_PATH}")"
+  fi
+fi
+
+# Launch UI window
+if command -v brave-browser >/dev/null 2>&1; then
+  # Launch as a lightweight standalone web app window (no address bar / tabs)
+  brave-browser --app="${TARGET_URL}" >/dev/null 2>&1 &
+elif command -v google-chrome >/dev/null 2>&1; then
+  google-chrome --app="${TARGET_URL}" >/dev/null 2>&1 &
+elif command -v chromium-browser >/dev/null 2>&1; then
+  chromium-browser --app="${TARGET_URL}" >/dev/null 2>&1 &
+elif command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "${TARGET_URL}" >/dev/null 2>&1 &
+else
+  echo "Mở trình duyệt tại: ${TARGET_URL}"
+fi
