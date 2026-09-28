@@ -17,6 +17,7 @@
    - Ưu tiên kết quả khớp Tiêu đề trước, sau đó tới Nội dung với trích đoạn highlight.
    - Hỗ trợ tìm kiếm theo tag: `#python`, `#api`.
 2. **Hỗ trợ trọn vẹn cú pháp Obsidian**:
+   - **Công thức toán học LaTeX**: Hiển thị mượt mà các khối công thức `$$...$$`, `$$\n{content}\n$$` và inline `$formula$` nhờ KaTeX offline siêu nhẹ.
    - **Liên kết nội bộ `[[Wikilinks]]`**: Nhấp chuột vào bất kỳ liên kết nào để nhảy ngay đến ghi chú đó không cần tải lại trang.
    - **Ảnh đính kèm `![[image.png]]`**: Tự động nhận diện và hiển thị ảnh từ thư mục đính kèm trong vault (`images/`).
    - **Obsidian Callouts**: Hiển thị đẹp mắt các hộp ghi chú `[!NOTE]`, `[!TIP]`, `[!WARNING]`, `[!IMPORTANT]`, v.v.
@@ -80,13 +81,17 @@ obsidian-quickview/
 ├── static/
 │   ├── index.html        # Giao diện web SPA
 │   ├── app.css           # Theme Obsidian Dark/Light và Callouts
-│   ├── app.js            # Xử lý render Markdown, Wikilinks, Search
+│   ├── app.js            # Xử lý render Markdown, LaTeX, Wikilinks, Search
 │   ├── icon.svg          # Logo ứng dụng
 │   ├── marked.min.js     # Bộ biên dịch Markdown offline
 │   ├── highlight.min.js  # Tô màu cú pháp code offline
-│   └── github-dark.min.css
+│   ├── github-dark.min.css
+│   ├── katex.min.js      # Bộ render LaTeX offline siêu nhẹ
+│   ├── katex.min.css     # CSS định dạng công thức toán
+│   └── fonts/            # Web fonts WOFF2 cho KaTeX
 ├── tests/
-│   └── test_indexer.py   # Unit tests kiểm thử FTS5 và bộ quét
+│   ├── test_indexer.py   # Unit tests kiểm thử FTS5 và bộ quét
+│   └── test_render_markdown.js # Unit tests render Markdown & LaTeX
 ├── indexer.py            # SQLite FTS5 Indexer và vi phân mtime
 ├── server.py             # HTTP Server siêu nhẹ (<25MB RAM)
 └── install.sh            # Script cài đặt symlink và shortcut .desktop

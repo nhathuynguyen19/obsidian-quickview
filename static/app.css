@@ -661,3 +661,41 @@ body {
   display: flex;
   gap: 12px;
 }
+
+/* LaTeX / Math Formula Styling */
+.math-block {
+  display: block;
+  text-align: center;
+  margin: 1.2em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 0;
+}
+
+.math-inline {
+  display: inline-block;
+  vertical-align: middle;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+.katex {
+  font-size: 1.12em;
+  color: var(--text-normal);
+}
+
+.katex-display {
+  margin: 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.math-block-error, .math-inline-error {
+  color: var(--accent-red);
+  font-family: var(--font-mono);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}

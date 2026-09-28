@@ -72,11 +72,68 @@
     });
   }
 
+  // Render LaTeX via KaTeX
+  function renderLatex(latex, isBlock) {
+    if (typeof katex !== 'undefined') {
+      try {
+        return katex.renderToString(latex, {
+          displayMode: isBlock,
+          throwOnError: false
+        });
+      } catch (e) {
+        console.warn('KaTeX rendering error:', e);
+      }
+    }
+    const escaped = String(latex).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return isBlock
+      ? `<pre class="math-block-error"><code>$$${escaped}$$</code></pre>`
+      : `<code class="math-inline-error">$${escaped}$</code>`;
+  }
+
   // Pre-process and render Markdown with Obsidian specifics
   function renderMarkdown(rawMd, currentNotePath) {
     let md = rawMd;
 
-    // 1. Process Obsidian Embeds: ![[image.png]] or ![[image.png|300]]
+    const codeBlocks = [];
+    const mathBlocks = [];
+    const mathInlines = [];
+
+    // 1. Protect code blocks: ```...``` or ~~~...~~~
+    md = md.replace(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g, (match) => {
+      const id = codeBlocks.length;
+      codeBlocks.push(match);
+      return `%%CODEBLOCK_${id}%%`;
+    });
+
+    // 2. Protect inline code: `...`
+    md = md.replace(/`([^`\n]+?)`/g, (match) => {
+      const id = codeBlocks.length;
+      codeBlocks.push(match);
+      return `%%CODEBLOCK_${id}%%`;
+    });
+
+    // 3. Extract Block Math: $$ ... $$ or $$\n ... \n$$
+    md = md.replace(/\$\$([\s\S]*?)\$\$/g, (match, content) => {
+      const id = mathBlocks.length;
+      // Strip leading blockquote '>' if present on each line
+      const clean = content.replace(/^[ \t]*>[ \t]?/gm, '').trim();
+      mathBlocks.push(clean);
+      return `%%MATHBLOCK_${id}%%`;
+    });
+
+    // 4. Extract Inline Math: $...$
+    md = md.replace(/(^|[^\\])\$([^\s\$\n](?:[^\$\n]*?[^\s\$\n])?)\$/g, (match, prefix, content) => {
+      const id = mathInlines.length;
+      mathInlines.push(content);
+      return `${prefix}%%MATHINLINE_${id}%%`;
+    });
+
+    // 5. Restore code blocks so marked can parse them normally
+    md = md.replace(/%%CODEBLOCK_(\d+)%%/g, (match, id) => {
+      return codeBlocks[parseInt(id, 10)];
+    });
+
+    // 6. Process Obsidian Embeds: ![[image.png]] or ![[image.png|300]]
     md = md.replace(/!\[\[(.*?)\]\]/g, (match, inner) => {
       const parts = inner.split('|');
       const filename = parts[0].trim();
@@ -88,7 +145,7 @@
       return `<div class="embed-box">📄 Đính kèm: <a href="/vault/${encodeURI(filename)}" target="_blank">${filename}</a></div>`;
     });
 
-    // 2. Process Obsidian Wikilinks: [[Target]] or [[Target|Alias]]
+    // 7. Process Obsidian Wikilinks: [[Target]] or [[Target|Alias]]
     md = md.replace(/\[\[(.*?)\]\]/g, (match, inner) => {
       const parts = inner.split('|');
       const target = parts[0].trim();
@@ -96,16 +153,22 @@
       return `<span class="wikilink" data-target="${target}">${alias}</span>`;
     });
 
-    // 3. Render HTML via Marked
+    // 8. Render HTML via Marked
     let html = typeof marked !== 'undefined' ? marked.parse(md) : md;
 
-    // 4. Process Obsidian Callouts
-    // e.g. <blockquote><p>[!NOTE] Title ...
+    // 9. Process Obsidian Callouts
     html = html.replace(
-      /<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|DANGER|TODO|FAQ|SUMMARY|EXAMPLE|QUOTE)\]\s*(.*?)<\/p>(.*?)<\/blockquote>/gis,
-      (match, type, title, body) => {
+      /<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|DANGER|TODO|FAQ|SUMMARY|EXAMPLE|QUOTE)\]\s*([^\n<]*)(?:<br\s*\/?>|\n)?([\s\S]*?)<\/p>\s*([\s\S]*?)<\/blockquote>/gis,
+      (match, type, title, firstParaRest, remainingBody) => {
         const typeLower = type.toLowerCase();
         const calloutTitle = title ? title.trim() : type.toUpperCase();
+        let body = '';
+        if (firstParaRest && firstParaRest.trim()) {
+          body += `<p>${firstParaRest.trim()}</p>`;
+        }
+        if (remainingBody && remainingBody.trim()) {
+          body += remainingBody.trim();
+        }
         return `
           <div class="callout callout-${typeLower}">
             <div class="callout-title">
@@ -117,6 +180,21 @@
         `;
       }
     );
+
+    // 10. Unwrap <p> around block math placeholders
+    html = html.replace(/<p>\s*(%%MATHBLOCK_\d+%%)\s*<\/p>/g, '$1');
+
+    // 11. Replace Block Math Placeholders with KaTeX rendered HTML
+    html = html.replace(/%%MATHBLOCK_(\d+)%%/g, (match, id) => {
+      const latex = mathBlocks[parseInt(id, 10)];
+      return `<div class="math-block">${renderLatex(latex, true)}</div>`;
+    });
+
+    // 12. Replace Inline Math Placeholders
+    html = html.replace(/%%MATHINLINE_(\d+)%%/g, (match, id) => {
+      const latex = mathInlines[parseInt(id, 10)];
+      return `<span class="math-inline">${renderLatex(latex, false)}</span>`;
+    });
 
     return html;
   }
