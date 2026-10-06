@@ -376,12 +376,36 @@ class VaultIndex:
 
         # BFS queue: (path, current_depth)
         queue = [(root_path, 0)]
+        def format_relative_time(mtime_val: float) -> str:
+            diff = time.time() - mtime_val
+            if diff < 60:
+                return "just now"
+            elif diff < 3600:
+                mins = max(1, int(diff / 60))
+                return f"{mins} minute{'s' if mins > 1 else ''} ago"
+            elif diff < 86400:
+                hours = max(1, int(diff / 3600))
+                return f"{hours} hour{'s' if hours > 1 else ''} ago"
+            elif diff < 86400 * 30:
+                days = max(1, int(diff / 86400))
+                return f"{days} day{'s' if days > 1 else ''} ago"
+            elif diff < 86400 * 365:
+                months = max(1, int(diff / (86400 * 30)))
+                return f"{months} month{'s' if months > 1 else ''} ago"
+            else:
+                years = max(1, int(diff / (86400 * 365)))
+                return f"{years} year{'s' if years > 1 else ''} ago"
+
+        root_mtime = root_note.get("mtime", time.time())
         collected_notes[root_path] = {
             "depth": 0,
             "title": root_note["title"],
             "path": root_path,
             "folder": root_note.get("folder", ""),
+            "mtime": root_mtime,
+            "updated_str": format_relative_time(root_mtime),
             "raw_content": root_note.get("raw_content", ""),
+            "is_current": True,
         }
 
         conn = self._get_connection()
@@ -404,19 +428,51 @@ class VaultIndex:
                     if resolved_rel not in collected_notes:
                         note_data = self.get_note_by_path(resolved_rel)
                         if note_data:
+                            note_mtime = note_data.get("mtime", time.time())
                             collected_notes[resolved_rel] = {
                                 "depth": curr_depth + 1,
                                 "title": note_data["title"],
                                 "path": resolved_rel,
                                 "folder": note_data.get("folder", ""),
+                                "mtime": note_mtime,
+                                "updated_str": format_relative_time(note_mtime),
                                 "raw_content": note_data.get("raw_content", ""),
+                                "is_current": False,
                             }
                             if curr_depth + 1 < max_depth:
                                 queue.append((resolved_rel, curr_depth + 1))
 
         conn.close()
 
-        # Build Mermaid diagram
+        # Build ASCII directory tree
+        def build_tree_ascii(notes_dict: Dict[str, Dict[str, Any]]) -> str:
+            tree: Dict[str, Any] = {}
+            for p, n in notes_dict.items():
+                parts = p.split(os.sep)
+                curr = tree
+                for seg in parts[:-1]:
+                    curr = curr.setdefault(seg + "/", {})
+                leaf_name = parts[-1] + (" (current)" if n.get("is_current") else "")
+                curr[leaf_name] = None
+
+            lines: List[str] = []
+
+            def render(d: Dict[str, Any], prefix: str = ""):
+                items = list(d.items())
+                for idx, (name, subtree) in enumerate(items):
+                    is_last = (idx == len(items) - 1)
+                    connector = "└── " if is_last else "├── "
+                    lines.append(f"{prefix}{connector}{name}")
+                    if subtree is not None:
+                        new_prefix = prefix + ("    " if is_last else "│   ")
+                        render(subtree, new_prefix)
+
+            render(tree)
+            return "\n".join(lines)
+
+        tree_str = build_tree_ascii(collected_notes)
+
+        # Build Mermaid diagram for internal metadata
         mermaid_lines = ["graph TD"]
         id_map: Dict[str, str] = {}
         for i, p in enumerate(collected_notes.keys()):
@@ -433,43 +489,31 @@ class VaultIndex:
             if src in id_map and dst in id_map:
                 mermaid_lines.append(f"  {id_map[src]} --> {id_map[dst]}")
 
-        # Mermaid block
-        mermaid_block = "```mermaid\n" + "\n".join(mermaid_lines) + "\n```"
+        # Assemble Markdown in exact requested format:
+        # └── Notes/
+        #     └── 0003.md (current)
+        #
+        # ## Notes/0003.md is-current
+        # Updated: 1 month ago | Depth: 0
+        # ````md
+        # ...
+        # ````
+        sorted_notes = sorted(collected_notes.values(), key=lambda x: (x["depth"], x["path"]))
 
-        # Build text outline / tree
-        text_tree = [f"• [Root] {root_note['title']} (`{root_path}`)"]
-        for d in range(1, max_depth + 1):
-            depth_notes = [n for n in collected_notes.values() if n["depth"] == d]
-            if depth_notes:
-                text_tree.append(f"  ├─ Cấp {d} ({len(depth_notes)} ghi chú liên kết):")
-                for dn in depth_notes:
-                    text_tree.append(f"  │  • {dn['title']} (`{dn['path']}`)")
-
-        # Assemble comprehensive Markdown Context
-        md_sections = []
-        md_sections.append(f"# BỐI CẢNH GHI CHÚ (NOTE CONTEXT)")
-        md_sections.append(f"- **Ghi chú chính**: {root_note['title']} (`{root_path}`)")
-        md_sections.append(f"- **Độ sâu liên kết outgoing**: Cấp {max_depth}")
-        md_sections.append(f"- **Tổng số ghi chú**: {len(collected_notes)}")
+        md_sections: List[str] = []
+        md_sections.append(tree_str)
         md_sections.append("")
-        md_sections.append("## 🗺️ Sơ đồ quan hệ ghi chú (Graph Diagram)")
-        md_sections.append(mermaid_block)
-        md_sections.append("")
-        md_sections.append("### Danh sách liên kết:")
-        md_sections.extend(text_tree)
-        md_sections.append("\n---\n")
 
-        # Include note contents
-        sorted_notes = sorted(collected_notes.values(), key=lambda x: (x["depth"], x["title"]))
         for sn in sorted_notes:
-            header_prefix = "★ GHI CHÚ GỐC (ROOT)" if sn["depth"] == 0 else f"LIÊN KẾT CẤP {sn['depth']}"
-            md_sections.append(f"## [{header_prefix}] {sn['title']}")
-            md_sections.append(f"> Tệp: `{sn['path']}`\n")
-            md_sections.append("```markdown")
+            is_cur_flag = " is-current" if sn.get("is_current") else ""
+            md_sections.append(f"## {sn['path']}{is_cur_flag}")
+            md_sections.append(f"Updated: {sn['updated_str']} | Depth: {sn['depth']}")
+            md_sections.append("````md")
             md_sections.append(sn["raw_content"])
-            md_sections.append("```\n")
+            md_sections.append("````")
+            md_sections.append("")
 
-        full_context_text = "\n".join(md_sections)
+        full_context_text = "\n".join(md_sections).strip()
 
         return {
             "root_path": root_path,
@@ -477,6 +521,7 @@ class VaultIndex:
             "max_depth": max_depth,
             "total_notes": len(collected_notes),
             "mermaid": "\n".join(mermaid_lines),
+            "tree_ascii": tree_str,
             "context_markdown": full_context_text,
             "notes": [
                 {"path": n["path"], "title": n["title"], "depth": n["depth"]}

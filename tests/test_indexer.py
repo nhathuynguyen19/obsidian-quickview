@@ -171,10 +171,12 @@ Hello world
         self.assertEqual(ctx1["root_title"], "Note 1")
         self.assertEqual(ctx1["max_depth"], 1)
         self.assertEqual(ctx1["total_notes"], 2)  # Note 1 + Ghi chú số 2
-        self.assertIn("graph TD", ctx1["mermaid"])
-        self.assertIn("```mermaid", ctx1["context_markdown"])
-        self.assertIn("GHI CHÚ GỐC", ctx1["context_markdown"])
-        self.assertIn("LIÊN KẾT CẤP 1", ctx1["context_markdown"])
+        self.assertIn("Note 1.md (current)", ctx1["context_markdown"])
+        self.assertIn("## Note 1.md is-current", ctx1["context_markdown"])
+        self.assertIn("Depth: 0", ctx1["context_markdown"])
+        self.assertIn("## Ghi chú số 2.md", ctx1["context_markdown"])
+        self.assertIn("Depth: 1", ctx1["context_markdown"])
+        self.assertIn("````md", ctx1["context_markdown"])
 
 if __name__ == "__main__":
     unittest.main()
