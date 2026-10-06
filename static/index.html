@@ -6,7 +6,7 @@
   <title>Obsidian QuickView</title>
   <link rel="stylesheet" href="/static/github-dark.min.css">
   <link rel="stylesheet" href="/static/katex.min.css">
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v=4">
 </head>
 <body>
   <!-- Sidebar -->
@@ -22,16 +22,28 @@
       <button id="btn-theme" class="btn" title="Đổi giao diện Sáng / Tối" style="padding: 4px 6px;">🌓</button>
     </div>
 
-    <!-- Quick Switcher trigger -->
+    <!-- Quick Switcher triggers -->
     <div class="quick-search-trigger" id="btn-trigger-search">
       <div style="display: flex; align-items: center; gap: 8px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <span>Tìm kiếm ghi chú...</span>
+        <span>Tìm theo tiêu đề...</span>
       </div>
       <span class="shortcut-badge">Ctrl K</span>
+    </div>
+    <div class="quick-search-trigger" id="btn-trigger-content-search" style="margin-top: 4px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        <span>Tìm trong nội dung...</span>
+      </div>
+      <span class="shortcut-badge">Ctrl ⇧ F</span>
     </div>
 
     <!-- Tabs -->
@@ -122,15 +134,25 @@
     </div>
   </main>
 
-  <!-- Quick Switcher Modal (Ctrl + K) -->
+  <!-- Quick Switcher Modal (Ctrl + K / Ctrl + Shift + F) -->
   <div id="search-modal-backdrop" class="modal-backdrop">
     <div class="search-modal">
+      <div class="search-mode-tabs">
+        <button type="button" class="search-mode-tab active" data-mode="title" id="tab-search-title">
+          <span>📝 Tiêu đề</span>
+          <kbd class="shortcut-badge">Ctrl K</kbd>
+        </button>
+        <button type="button" class="search-mode-tab" data-mode="content" id="tab-search-content">
+          <span>🔍 Nội dung</span>
+          <kbd class="shortcut-badge">Ctrl ⇧ F</kbd>
+        </button>
+      </div>
       <div class="search-input-wrapper">
         <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" id="search-input" placeholder="Tìm theo tên note, nội dung hoặc #tag..." autocomplete="off">
+        <input type="text" id="search-input" placeholder="Tìm theo tiêu đề ghi chú..." autocomplete="off">
         <button id="btn-close-modal" class="btn" style="border: none; background: transparent; font-size: 16px; cursor: pointer;">✕</button>
       </div>
       <div id="search-results" class="search-results">
@@ -140,6 +162,7 @@
         <div class="key-guide">
           <span><kbd class="shortcut-badge">↑↓</kbd> Di chuyển</span>
           <span><kbd class="shortcut-badge">Enter</kbd> Mở ghi chú</span>
+          <span><kbd class="shortcut-badge">Tab</kbd> Đổi chế độ</span>
           <span><kbd class="shortcut-badge">Esc</kbd> Đóng</span>
         </div>
         <span id="search-status-text">Gõ để tìm kiếm</span>
@@ -151,6 +174,6 @@
   <script src="/static/marked.min.js"></script>
   <script src="/static/highlight.min.js"></script>
   <script src="/static/katex.min.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>

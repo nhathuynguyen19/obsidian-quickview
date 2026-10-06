@@ -11,6 +11,24 @@ global.marked = require('../static/marked.min.js');
 global.hljs = require('../static/highlight.min.js');
 global.katex = require('../static/katex.min.js');
 
+// Configure marked link renderer to match app.js
+global.marked.use({
+  renderer: {
+    link(href, title, text) {
+      let linkHref = typeof href === 'object' && href ? href.href : href;
+      let linkTitle = typeof href === 'object' && href ? href.title : title;
+      let linkText = typeof href === 'object' && href ? href.text : text;
+
+      const titleAttr = linkTitle ? ` title="${linkTitle}"` : '';
+      if (linkHref && linkHref.startsWith('#')) {
+        return `<a href="${linkHref}"${titleAttr}>${linkText}</a>`;
+      }
+      return `<a href="${linkHref}" target="_blank" rel="noopener noreferrer"${titleAttr}>${linkText}</a>`;
+    }
+  }
+});
+global.marked.setOptions({ gfm: true, breaks: true });
+
 // Load renderMarkdown logic from app.js
 const appJsContent = fs.readFileSync(path.join(__dirname, '../static/app.js'), 'utf8');
 
@@ -132,7 +150,74 @@ echo "$VAR"
     console.log('✔ Test 8: Callout containing math block passed');
   }
 
-  console.log('\nAll 8 tests passed successfully! 🎉');
+  // Test 9: Image embed ![[image.png]] wrapped in link with target="_blank"
+  {
+    const md = 'Ảnh minh họa: ![[diagram.png|400]]';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('class="image-embed-link"'), 'Test 9 Failed: image-embed-link class missing');
+    assert(html.includes('target="_blank"'), 'Test 9 Failed: target="_blank" missing on image link');
+    assert(html.includes('href="/vault/diagram.png"'), 'Test 9 Failed: href pointing to /vault/diagram.png missing');
+    assert(html.includes('width="400"'), 'Test 9 Failed: width="400" attribute missing');
+    console.log('✔ Test 9: Image embed wrapped in new-tab link passed');
+  }
+
+  // Test 10: PDF embed ![[document.pdf]] with target="_blank"
+  {
+    const md = 'Tài liệu đính kèm: ![[sample.pdf]]';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('class="embed-box"'), 'Test 10 Failed: embed-box class missing');
+    assert(html.includes('href="/vault/sample.pdf"'), 'Test 10 Failed: pdf href missing');
+    assert(html.includes('target="_blank"'), 'Test 10 Failed: target="_blank" missing for pdf embed');
+    console.log('✔ Test 10: PDF embed with new-tab link passed');
+  }
+
+  // Test 11: Wikilink to PDF/media [[doc.pdf|Xem PDF]] rendered as anchor with target="_blank"
+  {
+    const md = 'Xem thêm [[report.pdf|Báo cáo chi tiết]] và [[photo.jpg]].';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('class="wikilink wikilink-attachment"'), 'Test 11 Failed: wikilink-attachment class missing');
+    assert(html.includes('href="/vault/report.pdf"'), 'Test 11 Failed: href missing on attachment wikilink');
+    assert(html.includes('target="_blank"'), 'Test 11 Failed: target="_blank" missing on attachment wikilink');
+    assert(html.includes('>Báo cáo chi tiết</a>'), 'Test 11 Failed: alias text missing');
+    assert(html.includes('href="/vault/photo.jpg"'), 'Test 11 Failed: href for photo.jpg missing');
+    console.log('✔ Test 11: Wikilink to attachments rendered as new-tab link passed');
+  }
+
+  // Test 12: Standard note wikilink [[Note]] remains as span
+  {
+    const md = 'Chuyển sang [[Ghi chú khác|Chi tiết]].';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('<span class="wikilink" data-target="Ghi chú khác">Chi tiết</span>'), 'Test 12 Failed: note wikilink should remain span');
+    console.log('✔ Test 12: Standard note wikilink preserved passed');
+  }
+
+  // Test 13: Standard markdown link [text](url) rendered with target="_blank"
+  {
+    const md = 'Truy cập [Google](https://google.com) để tìm kiếm.';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('<a href="https://google.com" target="_blank" rel="noopener noreferrer">Google</a>'), 'Test 13 Failed: [text](url) missing target="_blank"');
+    console.log('✔ Test 13: Standard markdown link [text](url) with target="_blank" passed');
+  }
+
+  // Test 14: Plain autolink URL rendered with target="_blank"
+  {
+    const md = 'Tham khảo tài liệu tại https://github.com/markedjs/marked.';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('href="https://github.com/markedjs/marked"'), 'Test 14 Failed: autolink href missing');
+    assert(html.includes('target="_blank"'), 'Test 14 Failed: autolink target="_blank" missing');
+    assert(html.includes('rel="noopener noreferrer"'), 'Test 14 Failed: autolink rel missing');
+    console.log('✔ Test 14: Plain autolink URL with target="_blank" passed');
+  }
+
+  // Test 15: Internal heading anchor [Heading](#heading) does not have target="_blank"
+  {
+    const md = 'Chuyển đến [Mục 1](#muc-1).';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('<a href="#muc-1">Mục 1</a>'), 'Test 15 Failed: internal anchor should not have target="_blank"');
+    console.log('✔ Test 15: Internal heading anchor preserved passed');
+  }
+
+  console.log('\nAll 15 tests passed successfully! 🎉');
 }
 
 runTests();

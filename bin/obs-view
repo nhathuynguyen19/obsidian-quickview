@@ -125,13 +125,17 @@ sys.exit(1)
 fi
 
 # Launch UI window
-if command -v brave-browser >/dev/null 2>&1; then
-  # Launch as a lightweight standalone web app window (no address bar / tabs)
-  brave-browser --app="${TARGET_URL}" >/dev/null 2>&1 &
+if [ -n "${QUICKVIEW_BROWSER}" ] && command -v "${QUICKVIEW_BROWSER}" >/dev/null 2>&1; then
+  "${QUICKVIEW_BROWSER}" "${TARGET_URL}" >/dev/null 2>&1 &
+elif command -v firefox >/dev/null 2>&1; then
+  # Mở trên tab mới trong cửa sổ hiện tại (hoặc mở Firefox nếu chưa chạy)
+  firefox --new-tab "${TARGET_URL}" >/dev/null 2>&1 &
 elif command -v google-chrome >/dev/null 2>&1; then
   google-chrome --app="${TARGET_URL}" >/dev/null 2>&1 &
 elif command -v chromium-browser >/dev/null 2>&1; then
   chromium-browser --app="${TARGET_URL}" >/dev/null 2>&1 &
+elif command -v brave-browser >/dev/null 2>&1; then
+  brave-browser --app="${TARGET_URL}" >/dev/null 2>&1 &
 elif command -v xdg-open >/dev/null 2>&1; then
   xdg-open "${TARGET_URL}" >/dev/null 2>&1 &
 else

@@ -32,7 +32,6 @@ Icon=${ICON_PATH}
 Terminal=false
 Categories=Office;Utility;TextEditor;
 Keywords=obsidian;markdown;notes;quick;viewer;
-StartupWMClass=brave-127.0.0.1__8765-Default
 EOF
 
 chmod +x "${DESKTOP_DEST}/obsidian-quickview.desktop"

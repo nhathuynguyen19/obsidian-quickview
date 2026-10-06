@@ -430,6 +430,23 @@ body {
   border-radius: 6px;
   margin: 12px 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.markdown-body img:hover {
+  opacity: 0.92;
+}
+
+.image-embed-link {
+  display: inline-block;
+  text-decoration: none;
+  border-bottom: none !important;
+}
+
+.wikilink-attachment::before {
+  content: "📎 ";
+  font-size: 11px;
 }
 
 /* Obsidian Callouts */
@@ -563,6 +580,41 @@ body {
   display: flex;
   flex-direction: column;
   max-height: 70vh;
+}
+
+.search-mode-tabs {
+  display: flex;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 6px 12px;
+  gap: 8px;
+}
+
+.search-mode-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.search-mode-tab:hover {
+  color: var(--text-normal);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.search-mode-tab.active {
+  background: var(--bg-primary);
+  color: var(--text-accent);
+  border-color: var(--border-color);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .search-input-wrapper {

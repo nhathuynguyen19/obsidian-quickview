@@ -90,20 +90,35 @@ Hello world
         self.assertEqual(stats["total_notes"], 2)
         self.assertEqual(stats["updated"], 2)
 
-        # Search by title without diacritics
-        res = idx.search("ghi chu so 2")
+        # Search by title without diacritics (mode="title")
+        res = idx.search("ghi chu so 2", mode="title")
         self.assertTrue(len(res) > 0)
         self.assertEqual(res[0]["title"], "Ghi chú số 2")
+
+        # Title search with multiple tokens separated: "note 1" -> matches "Note 1"
+        res_tokens = idx.search("note 1", mode="title")
+        self.assertTrue(len(res_tokens) > 0)
+        self.assertEqual(res_tokens[0]["title"], "Note 1")
+
+        # Content keyword should NOT match in mode="title"
+        res_title_exclusive = idx.search("FTS5", mode="title")
+        self.assertEqual(len(res_title_exclusive), 0)
 
         # Search by tag
         res_tag = idx.search("#python")
         self.assertEqual(len(res_tag), 1)
         self.assertEqual(res_tag[0]["title"], "Note 1")
 
-        # Search content FTS
-        res_content = idx.search("FTS5")
+        # Search content FTS (mode="content") with exact and prefix
+        res_content = idx.search("FTS5", mode="content")
         self.assertTrue(len(res_content) > 0)
         self.assertEqual(res_content[0]["title"], "Ghi chú số 2")
+
+        # Prefix search in content: "FTS" matches "FTS5", but only highlights "FTS"
+        res_prefix = idx.search("FTS", mode="content")
+        self.assertTrue(len(res_prefix) > 0)
+        self.assertEqual(res_prefix[0]["title"], "Ghi chú số 2")
+        self.assertIn("<mark>FTS</mark>5", res_prefix[0]["snippet_content"])
 
     def test_backlinks(self):
         idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
@@ -114,6 +129,37 @@ Hello world
         # Note 1 links to "Ghi chú số 2"
         backlink_titles = [b["title"] for b in note2["backlinks"]]
         self.assertIn("Note 1", backlink_titles)
+
+    def test_resolve_target_attachments(self):
+        # Create subfolders with attachments
+        img_dir = os.path.join(self.vault_dir, "images", "nested")
+        docs_dir = os.path.join(self.vault_dir, "docs")
+        os.makedirs(img_dir, exist_ok=True)
+        os.makedirs(docs_dir, exist_ok=True)
+
+        with open(os.path.join(img_dir, "diagram.png"), "wb") as f:
+            f.write(b"fake png")
+        with open(os.path.join(docs_dir, "report.pdf"), "wb") as f:
+            f.write(b"fake pdf")
+
+        idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
+        idx.update_index()
+
+        # Resolve by bare filename
+        res_img = idx.resolve_target("diagram.png")
+        self.assertEqual(res_img, os.path.join("images", "nested", "diagram.png"))
+
+        # Resolve by relative path
+        res_pdf = idx.resolve_target(os.path.join("docs", "report.pdf"))
+        self.assertEqual(res_pdf, os.path.join("docs", "report.pdf"))
+
+        # Resolve with anchor (e.g. #page=2)
+        res_pdf_anchor = idx.resolve_target("report.pdf#page=2")
+        self.assertEqual(res_pdf_anchor, os.path.join("docs", "report.pdf"))
+
+        # Case-insensitivity check
+        res_case = idx.resolve_target("REPORT.PDF")
+        self.assertEqual(res_case, os.path.join("docs", "report.pdf"))
 
 if __name__ == "__main__":
     unittest.main()

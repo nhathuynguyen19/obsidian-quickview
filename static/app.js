@@ -20,11 +20,16 @@
   // DOM Elements
   const btnTheme = document.getElementById('btn-theme');
   const btnTriggerSearch = document.getElementById('btn-trigger-search');
+  const btnTriggerContentSearch = document.getElementById('btn-trigger-content-search');
+  const tabSearchTitle = document.getElementById('tab-search-title');
+  const tabSearchContent = document.getElementById('tab-search-content');
   const searchModalBackdrop = document.getElementById('search-modal-backdrop');
   const searchInput = document.getElementById('search-input');
   const searchResultsContainer = document.getElementById('search-results');
   const searchStatusText = document.getElementById('search-status-text');
   const btnCloseModal = document.getElementById('btn-close-modal');
+
+  let currentSearchMode = 'title'; // 'title' hoặc 'content'
 
   const paneTree = document.getElementById('pane-tree');
   const paneRecent = document.getElementById('pane-recent');
@@ -55,6 +60,26 @@
 
   // Configure Marked.js
   if (typeof marked !== 'undefined') {
+    const renderer = {
+      link(href, title, text) {
+        let linkHref = typeof href === 'object' && href ? href.href : href;
+        let linkTitle = typeof href === 'object' && href ? href.title : title;
+        let linkText = typeof href === 'object' && href ? href.text : text;
+
+        const titleAttr = linkTitle ? ` title="${linkTitle}"` : '';
+        // Liên kết anchor nội bộ trong cùng ghi chú (bắt đầu bằng '#')
+        if (linkHref && linkHref.startsWith('#')) {
+          return `<a href="${linkHref}"${titleAttr}>${linkText}</a>`;
+        }
+        // Liên kết web ngoài hoặc URL -> mở trên tab mới
+        return `<a href="${linkHref}" target="_blank" rel="noopener noreferrer"${titleAttr}>${linkText}</a>`;
+      }
+    };
+
+    if (typeof marked.use === 'function') {
+      marked.use({ renderer });
+    }
+
     marked.setOptions({
       gfm: true,
       breaks: true,
@@ -133,6 +158,9 @@
       return codeBlocks[parseInt(id, 10)];
     });
 
+    // Regex nhận diện các định dạng file đính kèm / tài liệu / media
+    const ATTACHMENT_EXT_REGEX = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf|mp4|webm|ogv|mp3|wav|ogg|m4a|flac|doc|docx|xls|xlsx|ppt|pptx|zip|rar|7z|tar|gz|txt|csv)$/i;
+
     // 6. Process Obsidian Embeds: ![[image.png]] or ![[image.png|300]]
     md = md.replace(/!\[\[(.*?)\]\]/g, (match, inner) => {
       const parts = inner.split('|');
@@ -140,9 +168,9 @@
       const extra = parts[1] ? `width="${parts[1].trim()}"` : '';
       const isImg = /\.(png|jpe?g|gif|svg|webp|bmp)$/i.test(filename);
       if (isImg) {
-        return `<img src="/vault/${encodeURI(filename)}" alt="${filename}" ${extra} loading="lazy" onerror="this.onerror=null; this.src='/vault/images/${encodeURI(filename)}';" />`;
+        return `<a href="/vault/${encodeURI(filename)}" target="_blank" rel="noopener noreferrer" class="image-embed-link" title="Mở ảnh trên tab mới"><img src="/vault/${encodeURI(filename)}" alt="${filename}" ${extra} loading="lazy" onerror="this.onerror=null; this.src='/vault/images/${encodeURI(filename)}';" /></a>`;
       }
-      return `<div class="embed-box">📄 Đính kèm: <a href="/vault/${encodeURI(filename)}" target="_blank">${filename}</a></div>`;
+      return `<div class="embed-box">📄 Đính kèm: <a href="/vault/${encodeURI(filename)}" target="_blank" rel="noopener noreferrer">${filename}</a></div>`;
     });
 
     // 7. Process Obsidian Wikilinks: [[Target]] or [[Target|Alias]]
@@ -150,6 +178,11 @@
       const parts = inner.split('|');
       const target = parts[0].trim();
       const alias = parts[1] ? parts[1].trim() : target;
+      const targetWithoutAnchor = target.split('#')[0];
+      const isAtt = ATTACHMENT_EXT_REGEX.test(targetWithoutAnchor);
+      if (isAtt) {
+        return `<a class="wikilink wikilink-attachment" href="/vault/${encodeURI(target)}" target="_blank" rel="noopener noreferrer" data-target="${target}">${alias}</a>`;
+      }
       return `<span class="wikilink" data-target="${target}">${alias}</span>`;
     });
 
@@ -211,8 +244,23 @@
     }
   }
 
+  // Mở tài liệu, PDF, ảnh đính kèm trên tab mới bằng link file://
+  async function openAttachment(pathOrTarget) {
+    const res = await fetchJson(`/api/open-file?path=${encodeURIComponent(pathOrTarget)}`);
+    if (!res || res.status !== 'ok') {
+      // Dự phòng nếu không gọi được lệnh native: mở qua endpoint web /vault/
+      window.open('/vault/' + encodeURI(pathOrTarget), '_blank');
+    }
+  }
+
   // Load Note
   async function loadNote(path) {
+    if (!path.toLowerCase().endsWith('.md')) {
+      // Chặn tuyệt đối không nạp file PDF hoặc binary vào view note gây lag/treo giao diện
+      openAttachment(path);
+      return;
+    }
+
     const data = await fetchJson(`/api/note?path=${encodeURIComponent(path)}`);
     if (!data) {
       alert('Không thể tải ghi chú: ' + path);
@@ -364,10 +412,27 @@
     `).join('');
   }
 
+  function setSearchMode(mode) {
+    currentSearchMode = mode;
+    if (tabSearchTitle) tabSearchTitle.classList.toggle('active', mode === 'title');
+    if (tabSearchContent) tabSearchContent.classList.toggle('active', mode === 'content');
+
+    if (mode === 'title') {
+      searchInput.placeholder = 'Tìm theo tiêu đề ghi chú... (Ctrl K)';
+    } else {
+      searchInput.placeholder = 'Tìm theo nội dung markdown... (Ctrl Shift F)';
+    }
+
+    if (searchModalBackdrop.classList.contains('active')) {
+      doSearch(searchInput.value);
+    }
+  }
+
   // Quick Switcher Search
   async function doSearch(query) {
     searchStatusText.textContent = 'Đang tìm kiếm...';
-    const data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}&limit=40`);
+    const mode = currentSearchMode;
+    const data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}&mode=${encodeURIComponent(mode)}&limit=40`);
     if (!data || !data.results) {
       searchStatusText.textContent = 'Lỗi tìm kiếm';
       return;
@@ -375,12 +440,13 @@
 
     searchResults = data.results;
     selectedIndex = 0;
-    searchStatusText.textContent = `${searchResults.length} kết quả`;
+    const modeLabel = mode === 'title' ? 'kết quả tiêu đề' : 'kết quả nội dung';
+    searchStatusText.textContent = `${searchResults.length} ${modeLabel}`;
 
     if (searchResults.length === 0) {
       searchResultsContainer.innerHTML = `
         <div style="padding: 24px; text-align: center; color: var(--text-muted);">
-          Không tìm thấy ghi chú nào khớp với từ khóa
+          Không tìm thấy ghi chú nào khớp (${mode === 'title' ? 'theo tiêu đề' : 'trong nội dung'})
         </div>
       `;
       return;
@@ -393,7 +459,7 @@
     searchResultsContainer.innerHTML = searchResults.map((r, i) => `
       <div class="search-item ${i === selectedIndex ? 'selected' : ''}" data-index="${i}" data-path="${r.path}">
         <div class="search-item-header">
-          <span class="search-item-title">${r.title}</span>
+          <span class="search-item-title">${currentSearchMode === 'title' ? '📝 ' : '📄 '}${r.title}</span>
           <span class="search-item-path">${r.folder}</span>
         </div>
         ${r.snippet_content ? `<div class="search-snippet">${r.snippet_content}</div>` : ''}
@@ -407,7 +473,8 @@
     }
   }
 
-  function openSearchModal(initialQuery = '') {
+  function openSearchModal(initialQuery = '', mode = 'title') {
+    setSearchMode(mode);
     searchModalBackdrop.classList.add('active');
     searchInput.value = initialQuery;
     searchInput.focus();
@@ -440,7 +507,17 @@
   });
 
   // Quick Switcher open / close
-  btnTriggerSearch.addEventListener('click', () => openSearchModal());
+  btnTriggerSearch.addEventListener('click', () => openSearchModal('', 'title'));
+  if (btnTriggerContentSearch) {
+    btnTriggerContentSearch.addEventListener('click', () => openSearchModal('', 'content'));
+  }
+  if (tabSearchTitle) {
+    tabSearchTitle.addEventListener('click', () => setSearchMode('title'));
+  }
+  if (tabSearchContent) {
+    tabSearchContent.addEventListener('click', () => setSearchMode('content'));
+  }
+
   btnCloseModal.addEventListener('click', () => closeSearchModal());
 
   searchModalBackdrop.addEventListener('click', (e) => {
@@ -457,7 +534,10 @@
 
   // Keyboard navigation inside search modal
   searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      setSearchMode(currentSearchMode === 'title' ? 'content' : 'title');
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (searchResults.length > 0) {
         selectedIndex = (selectedIndex + 1) % searchResults.length;
@@ -491,10 +571,17 @@
 
   // Global Shortcuts
   window.addEventListener('keydown', (e) => {
-    // Ctrl+K or Ctrl+O -> Search
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'o')) {
+    // Ctrl+Shift+K hoặc Ctrl+Shift+F -> Tìm kiếm theo nội dung
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k' || e.key === 'F' || e.key === 'f')) {
       e.preventDefault();
-      openSearchModal();
+      openSearchModal(searchModalBackdrop.classList.contains('active') ? searchInput.value : '', 'content');
+      return;
+    }
+    // Ctrl+K hoặc Ctrl+O -> Tìm kiếm theo tiêu đề
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'k' || e.key === 'o')) {
+      e.preventDefault();
+      openSearchModal(searchModalBackdrop.classList.contains('active') ? searchInput.value : '', 'title');
+      return;
     }
     // Alt+O -> Open in Obsidian
     if (e.altKey && e.key === 'o') {
@@ -534,15 +621,57 @@
       return;
     }
 
+    // Image click inside note (if not wrapped in an <a> tag)
+    const imgEl = e.target.closest('.note-content img');
+    if (imgEl && !imgEl.closest('a')) {
+      const src = imgEl.getAttribute('src');
+      if (src) {
+        window.open(src, '_blank');
+        return;
+      }
+    }
+
+    // Embed box attachment hoặc image embed click
+    const embedLink = e.target.closest('.embed-box a, .image-embed-link, .wikilink-attachment');
+    if (embedLink) {
+      e.preventDefault();
+      const href = embedLink.getAttribute('href');
+      const target = embedLink.dataset.target;
+      if (target) {
+        openAttachment(target);
+      } else if (href && href.startsWith('/vault/')) {
+        const relPath = decodeURIComponent(href.substring('/vault/'.length));
+        openAttachment(relPath);
+      }
+      return;
+    }
+
+    // Standard external web links inside note content
+    const webLink = e.target.closest('.note-content a');
+    if (webLink && !webLink.closest('.wikilink')) {
+      const href = webLink.getAttribute('href');
+      if (href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//'))) {
+        webLink.setAttribute('target', '_blank');
+        webLink.setAttribute('rel', 'noopener noreferrer');
+      }
+    }
+
     // Wikilink click inside note
     const wikilinkEl = e.target.closest('.wikilink');
     if (wikilinkEl && wikilinkEl.dataset.target) {
+      e.preventDefault();
       const target = wikilinkEl.dataset.target;
       fetchJson(`/api/resolve?target=${encodeURIComponent(target)}`).then(res => {
         if (res && res.resolved_path) {
-          loadNote(res.resolved_path);
+          if (res.is_attachment || !res.resolved_path.toLowerCase().endsWith('.md')) {
+            // Mở tài liệu, PDF, ảnh trên tab mới của Firefox bằng link file://
+            openAttachment(res.resolved_path);
+          } else {
+            // Ghi chú markdown: mở trực tiếp trong app
+            loadNote(res.resolved_path);
+          }
         } else {
-          alert(`Không tìm thấy ghi chú mục tiêu: [[${target}]]`);
+          alert(`Không tìm thấy ghi chú hoặc tài liệu mục tiêu: [[${target}]]`);
         }
       });
       return;
