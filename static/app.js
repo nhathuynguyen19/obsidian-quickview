@@ -49,6 +49,12 @@
   const backlinksList = document.getElementById('backlinks-list');
   const backlinksCountLabel = document.getElementById('backlinks-count-label');
 
+  const contextDropdownWrapper = document.getElementById('context-dropdown-wrapper');
+  const btnCopyContext = document.getElementById('btn-copy-context');
+  const btnContextMenuTrigger = document.getElementById('btn-context-menu-trigger');
+  const contextDropdownMenu = document.getElementById('context-dropdown-menu');
+  let selectedContextDepth = 1;
+
   const btnCopyMd = document.getElementById('btn-copy-md');
   const btnQuickEdit = document.getElementById('btn-quick-edit');
   const btnOpenObsidian = document.getElementById('btn-open-obsidian');
@@ -278,6 +284,7 @@
     btnCopyMd.style.display = 'inline-flex';
     btnQuickEdit.style.display = 'inline-flex';
     btnOpenObsidian.style.display = 'inline-flex';
+    contextDropdownWrapper.style.display = 'inline-flex';
 
     // Breadcrumb
     const folderParts = (data.folder && data.folder !== '/') ? data.folder.split('/') : [];
@@ -675,6 +682,64 @@
         }
       });
       return;
+    }
+  });
+
+  // Copy Context Button & Depth Dropdown
+  btnContextMenuTrigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    contextDropdownMenu.classList.toggle('show');
+  });
+
+  document.querySelectorAll('#context-dropdown-menu .dropdown-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const depth = parseInt(item.dataset.depth, 10) || 1;
+      selectedContextDepth = depth;
+
+      // Update active state
+      document.querySelectorAll('#context-dropdown-menu .dropdown-item').forEach(el => {
+        const isCur = parseInt(el.dataset.depth, 10) === depth;
+        el.classList.toggle('active', isCur);
+        el.querySelector('.depth-check').textContent = isCur ? '✓' : '';
+      });
+
+      btnCopyContext.innerHTML = `🌐 Copy Context (Cấp ${depth})`;
+      contextDropdownMenu.classList.remove('show');
+    });
+  });
+
+  // Close dropdown menu when clicking outside
+  document.addEventListener('click', () => {
+    contextDropdownMenu.classList.remove('show');
+  });
+
+  btnCopyContext.addEventListener('click', async () => {
+    if (!currentNote) return;
+    const originalText = btnCopyContext.innerHTML;
+    btnCopyContext.innerHTML = '⏳ Đang tổng hợp context...';
+    btnCopyContext.disabled = true;
+
+    try {
+      const res = await fetchJson(`/api/context?path=${encodeURIComponent(currentNote.path)}&depth=${selectedContextDepth}`);
+      if (!res || !res.context_markdown) {
+        alert('Không thể tổng hợp context cho ghi chú này.');
+        btnCopyContext.innerHTML = originalText;
+        btnCopyContext.disabled = false;
+        return;
+      }
+
+      await navigator.clipboard.writeText(res.context_markdown);
+      btnCopyContext.innerHTML = `✅ Đã copy (${res.total_notes} notes)!`;
+      setTimeout(() => {
+        btnCopyContext.innerHTML = originalText;
+        btnCopyContext.disabled = false;
+      }, 2000);
+    } catch (err) {
+      console.error('Error copying context:', err);
+      alert('Lỗi khi sao chép context: ' + err.message);
+      btnCopyContext.innerHTML = originalText;
+      btnCopyContext.disabled = false;
     }
   });
 

@@ -74,6 +74,32 @@
         <span>Chọn một ghi chú để bắt đầu xem</span>
       </div>
       <div class="nav-actions">
+        <!-- Copy Context Dropdown Button -->
+        <div class="dropdown-wrapper" id="context-dropdown-wrapper" style="display: none;">
+          <button id="btn-copy-context" class="btn btn-context" title="Copy toàn bộ nội dung note kèm các outgoing note và sơ đồ graph">
+            🌐 Copy Context (Cấp 1)
+          </button>
+          <button id="btn-context-menu-trigger" class="btn btn-context-arrow" title="Tùy chọn độ sâu Context">
+            ▾
+          </button>
+          <div class="dropdown-menu" id="context-dropdown-menu">
+            <div class="dropdown-item active" data-depth="1">
+              <span class="depth-check">✓</span>
+              <div>
+                <strong>Outgoing cấp 1 (Mặc định)</strong>
+                <div class="dropdown-desc">Ghi chú hiện tại + các note được liên kết trực tiếp</div>
+              </div>
+            </div>
+            <div class="dropdown-item" data-depth="2">
+              <span class="depth-check"></span>
+              <div>
+                <strong>Outgoing cấp 2</strong>
+                <div class="dropdown-desc">Mở rộng thêm các note cấp 2 từ outgoing notes</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <button id="btn-copy-md" class="btn" title="Copy mã Markdown" style="display: none;">
           📋 Copy MD
         </button>

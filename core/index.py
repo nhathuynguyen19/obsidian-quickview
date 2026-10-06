@@ -359,3 +359,128 @@ class VaultIndex:
                 tag_counts[t] = tag_counts.get(t, 0) + 1
 
         return sorted([{"tag": k, "count": v} for k, v in tag_counts.items()], key=lambda x: (-x["count"], x["tag"]))
+
+    def get_note_context(self, root_path: str, max_depth: int = 1) -> Optional[Dict[str, Any]]:
+        """
+        Traverse outgoing wikilinks up to max_depth (1 or 2) and generate full context markdown
+        with Mermaid diagram graph and note contents.
+        """
+        root_note = self.get_note_by_path(root_path)
+        if not root_note:
+            return None
+
+        max_depth = max(1, min(2, int(max_depth)))
+
+        collected_notes: Dict[str, Dict[str, Any]] = {}
+        edges: List[Tuple[str, str]] = []
+
+        # BFS queue: (path, current_depth)
+        queue = [(root_path, 0)]
+        collected_notes[root_path] = {
+            "depth": 0,
+            "title": root_note["title"],
+            "path": root_path,
+            "folder": root_note.get("folder", ""),
+            "raw_content": root_note.get("raw_content", ""),
+        }
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        while queue:
+            curr_path, curr_depth = queue.pop(0)
+            if curr_depth >= max_depth:
+                continue
+
+            cursor.execute(
+                "SELECT target_title FROM links WHERE source_path = ? AND is_embed = 0",
+                (curr_path,)
+            )
+            for lr in cursor.fetchall():
+                target_title = lr["target_title"]
+                resolved_rel = self.resolve_target(target_title)
+                if resolved_rel and resolved_rel.endswith(".md"):
+                    edges.append((curr_path, resolved_rel))
+                    if resolved_rel not in collected_notes:
+                        note_data = self.get_note_by_path(resolved_rel)
+                        if note_data:
+                            collected_notes[resolved_rel] = {
+                                "depth": curr_depth + 1,
+                                "title": note_data["title"],
+                                "path": resolved_rel,
+                                "folder": note_data.get("folder", ""),
+                                "raw_content": note_data.get("raw_content", ""),
+                            }
+                            if curr_depth + 1 < max_depth:
+                                queue.append((resolved_rel, curr_depth + 1))
+
+        conn.close()
+
+        # Build Mermaid diagram
+        mermaid_lines = ["graph TD"]
+        id_map: Dict[str, str] = {}
+        for i, p in enumerate(collected_notes.keys()):
+            node_id = f"N{i}"
+            id_map[p] = node_id
+            safe_title = collected_notes[p]["title"].replace('"', "'")
+            if collected_notes[p]["depth"] == 0:
+                mermaid_lines.append(f'  {node_id}["★ {safe_title} (Root)"]')
+            else:
+                mermaid_lines.append(f'  {node_id}["{safe_title}"]')
+
+        unique_edges = set(edges)
+        for src, dst in unique_edges:
+            if src in id_map and dst in id_map:
+                mermaid_lines.append(f"  {id_map[src]} --> {id_map[dst]}")
+
+        # Mermaid block
+        mermaid_block = "```mermaid\n" + "\n".join(mermaid_lines) + "\n```"
+
+        # Build text outline / tree
+        text_tree = [f"• [Root] {root_note['title']} (`{root_path}`)"]
+        for d in range(1, max_depth + 1):
+            depth_notes = [n for n in collected_notes.values() if n["depth"] == d]
+            if depth_notes:
+                text_tree.append(f"  ├─ Cấp {d} ({len(depth_notes)} ghi chú liên kết):")
+                for dn in depth_notes:
+                    text_tree.append(f"  │  • {dn['title']} (`{dn['path']}`)")
+
+        # Assemble comprehensive Markdown Context
+        md_sections = []
+        md_sections.append(f"# BỐI CẢNH GHI CHÚ (NOTE CONTEXT)")
+        md_sections.append(f"- **Ghi chú chính**: {root_note['title']} (`{root_path}`)")
+        md_sections.append(f"- **Độ sâu liên kết outgoing**: Cấp {max_depth}")
+        md_sections.append(f"- **Tổng số ghi chú**: {len(collected_notes)}")
+        md_sections.append("")
+        md_sections.append("## 🗺️ Sơ đồ quan hệ ghi chú (Graph Diagram)")
+        md_sections.append(mermaid_block)
+        md_sections.append("")
+        md_sections.append("### Danh sách liên kết:")
+        md_sections.extend(text_tree)
+        md_sections.append("\n---\n")
+
+        # Include note contents
+        sorted_notes = sorted(collected_notes.values(), key=lambda x: (x["depth"], x["title"]))
+        for sn in sorted_notes:
+            header_prefix = "★ GHI CHÚ GỐC (ROOT)" if sn["depth"] == 0 else f"LIÊN KẾT CẤP {sn['depth']}"
+            md_sections.append(f"## [{header_prefix}] {sn['title']}")
+            md_sections.append(f"> Tệp: `{sn['path']}`\n")
+            md_sections.append("```markdown")
+            md_sections.append(sn["raw_content"])
+            md_sections.append("```\n")
+
+        full_context_text = "\n".join(md_sections)
+
+        return {
+            "root_path": root_path,
+            "root_title": root_note["title"],
+            "max_depth": max_depth,
+            "total_notes": len(collected_notes),
+            "mermaid": "\n".join(mermaid_lines),
+            "context_markdown": full_context_text,
+            "notes": [
+                {"path": n["path"], "title": n["title"], "depth": n["depth"]}
+                for n in sorted_notes
+            ]
+        }
+

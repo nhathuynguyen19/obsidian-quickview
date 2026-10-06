@@ -161,5 +161,20 @@ Hello world
         res_case = idx.resolve_target("REPORT.PDF")
         self.assertEqual(res_case, os.path.join("docs", "report.pdf"))
 
+    def test_get_note_context(self):
+        idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
+        idx.update_index()
+
+        # Note 1 links to "Ghi chú số 2"
+        ctx1 = idx.get_note_context("Note 1.md", max_depth=1)
+        self.assertIsNotNone(ctx1)
+        self.assertEqual(ctx1["root_title"], "Note 1")
+        self.assertEqual(ctx1["max_depth"], 1)
+        self.assertEqual(ctx1["total_notes"], 2)  # Note 1 + Ghi chú số 2
+        self.assertIn("graph TD", ctx1["mermaid"])
+        self.assertIn("```mermaid", ctx1["context_markdown"])
+        self.assertIn("GHI CHÚ GỐC", ctx1["context_markdown"])
+        self.assertIn("LIÊN KẾT CẤP 1", ctx1["context_markdown"])
+
 if __name__ == "__main__":
     unittest.main()

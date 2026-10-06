@@ -126,6 +126,24 @@ class ObsidianViewHandler(BaseHTTPRequestHandler):
                 self._send_error(404, f"Note not found: {rel_path}")
             return
 
+        if path == "/api/context":
+            rel_path = query.get("path", [""])[0]
+            depth = query.get("depth", ["1"])[0]
+            if not rel_path:
+                self._send_error(400, "Missing 'path' query parameter")
+                return
+            try:
+                depth_int = int(depth)
+            except ValueError:
+                depth_int = 1
+
+            ctx = self.vault_index.get_note_context(rel_path, max_depth=depth_int)
+            if ctx:
+                self._send_json(ctx)
+            else:
+                self._send_error(404, f"Note not found for context: {rel_path}")
+            return
+
         if path == "/api/resolve":
             target = query.get("target", [""])[0]
             if not target:
