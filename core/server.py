@@ -269,6 +269,128 @@ class ObsidianViewHandler(BaseHTTPRequestHandler):
                 self._send_error(500, f"Error saving note: {str(e)}")
             return
 
+        if path == "/api/git-sync":
+            vault_base = self.vault_index.vault_path
+
+            # 1. Check if git repo
+            check_git = subprocess.run(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=vault_base,
+                capture_output=True,
+                text=True
+            )
+            if check_git.returncode != 0 or check_git.stdout.strip() != "true":
+                self._send_json({
+                    "status": "error",
+                    "stage": "git_init",
+                    "message": f"Thư mục Vault ({vault_base}) không phải là một Git repository hợp lệ."
+                })
+                return
+
+            # 2. Check git user.name and user.email
+            name_check = subprocess.run(["git", "config", "user.name"], cwd=vault_base, capture_output=True, text=True)
+            email_check = subprocess.run(["git", "config", "user.email"], cwd=vault_base, capture_output=True, text=True)
+            user_name = name_check.stdout.strip()
+            user_email = email_check.stdout.strip()
+
+            if not user_name or not user_email:
+                self._send_json({
+                    "status": "error",
+                    "stage": "git_config",
+                    "message": "Chưa cấu hình Git user.name hoặc user.email (cần chạy: git config --global user.name '...' và git config --global user.email '...')."
+                })
+                return
+
+            # 3. Check git remote
+            remote_check = subprocess.run(["git", "remote", "get-url", "origin"], cwd=vault_base, capture_output=True, text=True)
+            if remote_check.returncode != 0 or not remote_check.stdout.strip():
+                self._send_json({
+                    "status": "error",
+                    "stage": "git_remote",
+                    "message": "Repository chưa được cấu hình remote 'origin' để push."
+                })
+                return
+            remote_url = remote_check.stdout.strip()
+
+            # 4. Check status changes
+            status_proc = subprocess.run(["git", "status", "--porcelain"], cwd=vault_base, capture_output=True, text=True)
+            changed_lines = [l for l in status_proc.stdout.splitlines() if l.strip()]
+            num_changed = len(changed_lines)
+
+            # Check unpushed commits
+            unpushed_proc = subprocess.run(["git", "log", "@{u}..HEAD", "--oneline"], cwd=vault_base, capture_output=True, text=True)
+            has_unpushed = unpushed_proc.returncode == 0 and len(unpushed_proc.stdout.strip()) > 0
+
+            if num_changed == 0 and not has_unpushed:
+                self._send_json({
+                    "status": "noop",
+                    "message": "Vault đã đồng bộ hoàn toàn (không có file thay đổi và không có commit chưa push)."
+                })
+                return
+
+            commit_message = ""
+            if num_changed > 0:
+                # 5. git add .
+                add_proc = subprocess.run(["git", "add", "."], cwd=vault_base, capture_output=True, text=True)
+                if add_proc.returncode != 0:
+                    self._send_json({
+                        "status": "error",
+                        "stage": "git_add",
+                        "message": f"Lỗi khi thực hiện 'git add .': {add_proc.stderr.strip()}"
+                    })
+                    return
+
+                # 6. git commit
+                import datetime
+                now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                commit_message = f"sync: | {num_changed} files changed at {now_str}"
+
+                commit_proc = subprocess.run(
+                    ["git", "commit", "-m", commit_message],
+                    cwd=vault_base,
+                    capture_output=True,
+                    text=True
+                )
+                if commit_proc.returncode != 0:
+                    self._send_json({
+                        "status": "error",
+                        "stage": "git_commit",
+                        "message": f"Lỗi khi tạo commit: {commit_proc.stderr.strip()}"
+                    })
+                    return
+
+            # 7. git push
+            branch_proc = subprocess.run(["git", "branch", "--show-current"], cwd=vault_base, capture_output=True, text=True)
+            branch = branch_proc.stdout.strip() or "master"
+
+            push_proc = subprocess.run(
+                ["git", "push", "origin", branch],
+                cwd=vault_base,
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            if push_proc.returncode != 0:
+                err_msg = push_proc.stderr.strip() or push_proc.stdout.strip()
+                self._send_json({
+                    "status": "error",
+                    "stage": "git_push",
+                    "message": f"Đã add và commit thành công ({commit_message or 'trước đó'}) nhưng KHÔNG thể push lên GitHub ({remote_url}). Chi tiết: {err_msg}"
+                })
+                return
+
+            self._send_json({
+                "status": "ok",
+                "stage": "success",
+                "files_changed": num_changed,
+                "commit_message": commit_message,
+                "branch": branch,
+                "remote_url": remote_url,
+                "message": f"Đã add, commit và push thành công lên {remote_url} ({branch})!"
+            })
+            return
+
         self.send_error(404, "Endpoint not found")
 
 

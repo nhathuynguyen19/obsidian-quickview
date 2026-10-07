@@ -313,6 +313,15 @@ body {
   padding: 5px 8px;
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
 .btn-history {
   padding: 5px 7px;
   background: transparent;

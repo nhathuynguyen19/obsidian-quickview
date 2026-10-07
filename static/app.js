@@ -67,6 +67,7 @@
   const btnCopyMd = document.getElementById('btn-copy-md');
   const btnQuickEdit = document.getElementById('btn-quick-edit');
   const btnOpenObsidian = document.getElementById('btn-open-obsidian');
+  const btnSyncVault = document.getElementById('btn-sync-vault');
 
   const editContainer = document.getElementById('edit-container');
   const editTextarea = document.getElementById('edit-textarea');
@@ -921,6 +922,55 @@
     const uri = `obsidian://open?vault=${vaultName}&file=${filePath}`;
     window.location.href = uri;
   });
+
+  // Git Sync / Push Vault
+  if (btnSyncVault) {
+    btnSyncVault.addEventListener('click', async () => {
+      const origHtml = btnSyncVault.innerHTML;
+      btnSyncVault.disabled = true;
+      btnSyncVault.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
+          <line x1="12" y1="2" x2="12" y2="6"></line>
+          <line x1="12" y1="18" x2="12" y2="22"></line>
+          <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+          <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+          <line x1="2" y1="12" x2="6" y2="12"></line>
+          <line x1="18" y1="12" x2="22" y2="12"></line>
+          <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+          <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+        </svg>
+        <span class="btn-text">Đang sync...</span>
+      `;
+
+      try {
+        const res = await fetch('/api/git-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'ok') {
+          btnSyncVault.innerHTML = `<span class="btn-text">✅ Đã push (${data.files_changed} files)!</span>`;
+          alert(`✅ ${data.message}\nCommit: ${data.commit_message || 'HEAD'}`);
+        } else if (res.ok && data.status === 'noop') {
+          btnSyncVault.innerHTML = `<span class="btn-text">👌 Đã đồng bộ</span>`;
+          alert(`👌 ${data.message}`);
+        } else {
+          btnSyncVault.innerHTML = `<span class="btn-text">❌ Lỗi push</span>`;
+          alert(`❌ Đồng bộ thất bại:\n${data.message || 'Lỗi không xác định'}`);
+        }
+      } catch (err) {
+        console.error('Error syncing vault:', err);
+        btnSyncVault.innerHTML = `<span class="btn-text">❌ Lỗi kết nối</span>`;
+        alert(`❌ Lỗi kết nối server khi push vault: ${err.message}`);
+      } finally {
+        setTimeout(() => {
+          btnSyncVault.innerHTML = origHtml;
+          btnSyncVault.disabled = false;
+        }, 3000);
+      }
+    });
+  }
 
   // Quick Edit Mode & Auto-resizing Textarea
   function autoResizeTextarea() {
