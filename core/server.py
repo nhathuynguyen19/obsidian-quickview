@@ -14,6 +14,13 @@ from typing import Optional
 
 from core.config import DEFAULT_VAULT_PATH, DEFAULT_PORT, DEFAULT_HOST
 from core.index import VaultIndex
+from core.vault_manager import (
+    load_vault_config,
+    save_vault_config,
+    get_all_vaults,
+    get_active_vault_path,
+    get_vault_db_path,
+)
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(PROJECT_DIR, "static")
@@ -107,6 +114,9 @@ class ObsidianViewHandler(BaseHTTPRequestHandler):
             q = query.get("q", [""])[0]
             mode = query.get("mode", ["title"])[0]
             limit = int(query.get("limit", [50])[0])
+            if not self.vault_index or not os.path.isdir(self.vault_index.vault_path):
+                self._send_json({"results": [], "mode": mode})
+                return
             results = self.vault_index.search(q, mode=mode, limit=limit)
             self._send_json({"results": results, "mode": mode})
             return
@@ -201,11 +211,17 @@ class ObsidianViewHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/tree":
+            if not self.vault_index or not os.path.isdir(self.vault_index.vault_path):
+                self._send_json({"name": "Vault", "type": "folder", "path": "", "children": {}})
+                return
             tree = self.vault_index.get_tree()
             self._send_json(tree)
             return
 
         if path == "/api/tags":
+            if not self.vault_index or not os.path.isdir(self.vault_index.vault_path):
+                self._send_json({"tags": []})
+                return
             tags = self.vault_index.get_tags()
             self._send_json({"tags": tags})
             return
@@ -220,6 +236,22 @@ class ObsidianViewHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "vault_path": self.vault_index.vault_path,
                 "db_path": self.vault_index.db_path,
+            })
+            return
+
+        if path == "/api/vaults":
+            active_vault = self.vault_index.vault_path if self.vault_index else ""
+            cfg = load_vault_config()
+            vaults = get_all_vaults(active_vault)
+            is_first_run = not cfg.get("first_run_completed", False)
+            current_exists = os.path.isdir(active_vault) if active_vault else False
+            current_name = os.path.basename(active_vault) if active_vault else ""
+            self._send_json({
+                "current_vault": active_vault,
+                "current_vault_name": current_name,
+                "current_vault_exists": current_exists,
+                "is_first_run": is_first_run,
+                "vaults": vaults
             })
             return
 
@@ -391,15 +423,97 @@ class ObsidianViewHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if path == "/api/vaults/switch":
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length <= 0:
+                self._send_error(400, "Empty payload")
+                return
+
+            try:
+                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                target_path = body.get("path", "").strip()
+                set_default = body.get("set_default", True)
+
+                if not target_path:
+                    self._send_error(400, "Thiếu đường dẫn vault")
+                    return
+
+                target_path = os.path.normpath(os.path.expanduser(target_path))
+                if not os.path.isdir(target_path):
+                    self._send_error(400, f"Thư mục vault không tồn tại hoặc đã bị xóa: {target_path}")
+                    return
+
+                # Save persistent configuration
+                save_vault_config(
+                    default_vault=target_path if set_default else None,
+                    first_run_completed=True
+                )
+
+                # Initialize index for selected vault
+                new_db = get_vault_db_path(target_path)
+                new_index = VaultIndex(vault_path=target_path, db_path=new_db)
+                stats = new_index.update_index()
+                ObsidianViewHandler.vault_index = new_index
+
+                self._send_json({
+                    "status": "ok",
+                    "current_vault": target_path,
+                    "current_vault_name": os.path.basename(target_path) or target_path,
+                    "stats": stats
+                })
+            except Exception as e:
+                self._send_error(500, f"Lỗi chuyển vault: {str(e)}")
+            return
+
+        if path == "/api/vaults/add":
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length <= 0:
+                self._send_error(400, "Empty payload")
+                return
+
+            try:
+                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                target_path = body.get("path", "").strip()
+                if not target_path:
+                    self._send_error(400, "Thiếu đường dẫn vault")
+                    return
+
+                target_path = os.path.normpath(os.path.expanduser(target_path))
+                if not os.path.isdir(target_path):
+                    self._send_error(400, f"Thư mục không tồn tại: {target_path}")
+                    return
+
+                cfg = load_vault_config()
+                customs = cfg.get("custom_vaults", [])
+                if target_path not in customs:
+                    customs.append(target_path)
+                    save_vault_config(custom_vaults=customs)
+
+                cur = self.vault_index.vault_path if self.vault_index else target_path
+                self._send_json({
+                    "status": "ok",
+                    "vaults": get_all_vaults(cur)
+                })
+            except Exception as e:
+                self._send_error(500, f"Lỗi thêm vault: {str(e)}")
+            return
+
         self.send_error(404, "Endpoint not found")
 
 
-def run_server(vault_path: str = DEFAULT_VAULT_PATH, port: int = DEFAULT_PORT, host: str = DEFAULT_HOST):
+def run_server(vault_path: Optional[str] = None, port: int = DEFAULT_PORT, host: str = DEFAULT_HOST):
     """Starts the HTTP server with threading support."""
-    index = VaultIndex(vault_path=vault_path)
+    if not vault_path:
+        active_path, exists, is_first_run = get_active_vault_path()
+        vault_path = active_path
+    else:
+        vault_path = os.path.normpath(os.path.expanduser(vault_path))
+
+    db_path = get_vault_db_path(vault_path)
+    index = VaultIndex(vault_path=vault_path, db_path=db_path)
     print(f"Checking / updating vault index ({vault_path})...")
     stats = index.update_index()
-    print(f"Indexed {stats['total_notes']} notes in {stats['duration_ms']}ms.")
+    print(f"Indexed {stats.get('total_notes', 0)} notes in {stats.get('duration_ms', 0)}ms.")
 
     ObsidianViewHandler.vault_index = index
 

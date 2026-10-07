@@ -10,5 +10,5 @@ from core.server import run_server
 
 if __name__ == "__main__":
     port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
-    vault_arg = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_VAULT_PATH
+    vault_arg = sys.argv[2] if len(sys.argv) > 2 else None
     run_server(vault_path=vault_arg, port=port_arg)

@@ -86,6 +86,16 @@ class VaultIndex:
         t0 = time.time()
         conn = self._get_connection()
 
+        if not os.path.isdir(self.vault_path):
+            conn.close()
+            return {
+                "total_notes": 0,
+                "added_or_updated": 0,
+                "deleted": 0,
+                "duration_ms": int((time.time() - t0) * 1000),
+                "error": "Vault path does not exist"
+            }
+
         if force:
             with conn:
                 conn.execute("DELETE FROM notes")
