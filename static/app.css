@@ -24,20 +24,20 @@
 }
 
 [data-theme="light"] {
-  --bg-primary: #f0f2f5;
-  --bg-secondary: #fafbfc;
-  --bg-tertiary: #eaecf0;
-  --bg-hover: #e2e5eb;
-  --bg-active: #d5d9e2;
-  --paper-bg: #ffffff;
-  --paper-border: #e1e4ea;
-  --paper-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-  --text-normal: #1f2328;
-  --text-muted: #656d76;
+  --bg-primary: #ece8e0;
+  --bg-secondary: #f4f0e8;
+  --bg-tertiary: #e3ded4;
+  --bg-hover: #ded8cd;
+  --bg-active: #d4cdc0;
+  --paper-bg: #faf7f0;
+  --paper-border: #dfd9ce;
+  --paper-shadow: 0 4px 20px rgba(60, 50, 40, 0.07), 0 1px 3px rgba(60, 50, 40, 0.05);
+  --text-normal: #2a2824;
+  --text-muted: #6e6b64;
   --text-accent: #6347e3;
-  --text-accent-hover: #7b62f5;
-  --border-color: #d8dce3;
-  --code-bg: #f6f8fa;
+  --text-accent-hover: #5035cc;
+  --border-color: #d8d2c5;
+  --code-bg: #efebe2;
 }
 
 * {
@@ -67,6 +67,11 @@ body {
   display: flex;
   flex-direction: column;
   user-select: none;
+  /* Instant toggle: no transition or fade */
+}
+
+#sidebar.collapsed {
+  display: none !important;
 }
 
 .sidebar-header {
@@ -433,7 +438,9 @@ body {
 }
 
 .paper-sheet {
-  background: var(--paper-bg);
+  background-color: var(--paper-bg);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.035) 0.75px, transparent 0.75px);
+  background-size: 8px 8px;
   border: 1px solid var(--paper-border);
   border-radius: 10px;
   box-shadow: var(--paper-shadow);
@@ -441,6 +448,10 @@ body {
   margin: 0 auto;
   padding: 44px 56px 64px;
   transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .paper-sheet {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.02) 0.75px, transparent 0.75px);
 }
 
 .empty-state {
@@ -467,8 +478,10 @@ body {
 
 .frontmatter-row {
   display: flex;
+  align-items: baseline;
   gap: 12px;
   margin-bottom: 6px;
+  word-break: break-word;
 }
 
 .frontmatter-row:last-child {
@@ -479,6 +492,58 @@ body {
   color: var(--text-muted);
   min-width: 80px;
   font-weight: 500;
+  flex-shrink: 0;
+}
+
+.frontmatter-val {
+  flex: 1;
+  min-width: 0;
+}
+
+.frontmatter-link-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.frontmatter-url {
+  color: var(--text-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  word-break: break-all;
+  transition: color 0.15s ease;
+}
+
+.frontmatter-url:hover {
+  color: var(--text-accent-hover);
+}
+
+.btn-copy-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-copy-link:hover {
+  background: var(--bg-hover);
+  color: var(--text-normal);
+  border-color: var(--accent-purple);
+}
+
+.btn-copy-link.copied {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
 }
 
 .tag-pill {
@@ -697,31 +762,62 @@ body {
   border-color: var(--accent-purple);
 }
 
-/* Quick Edit Textarea */
+/* Quick Edit Mode */
 #edit-container {
   display: none;
   flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
   height: 100%;
-  padding: 20px;
+}
+
+.edit-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 24px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  gap: 12px;
+}
+
+.edit-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-content-wrapper {
+  padding: 32px 24px 80px;
+  width: 100%;
+  flex: 1;
+}
+
+.edit-paper-sheet {
+  min-height: 480px;
+  padding: 44px 56px 64px;
 }
 
 #edit-textarea {
-  flex: 1;
   width: 100%;
-  background: var(--code-bg);
+  background: transparent;
   color: var(--text-normal);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 16px;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1.6;
-  resize: none;
+  border: none;
   outline: none;
-}
-
-#edit-textarea:focus {
-  border-color: var(--accent-purple);
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 14.5px;
+  line-height: 1.7;
+  resize: none;
+  overflow-y: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  display: block;
+  min-height: 380px;
 }
 
 /* Quick Switcher Modal */

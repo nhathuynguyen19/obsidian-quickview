@@ -22,6 +22,8 @@
   document.documentElement.setAttribute('data-theme', currentTheme);
 
   // DOM Elements
+  const sidebar = document.getElementById('sidebar');
+  const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
   const btnTheme = document.getElementById('btn-theme');
   const btnHistoryBack = document.getElementById('btn-history-back');
   const btnHistoryForward = document.getElementById('btn-history-forward');
@@ -47,6 +49,7 @@
   const tagsContainer = document.getElementById('tags-container');
 
   const noteBreadcrumb = document.getElementById('note-breadcrumb');
+  const noteContainer = document.getElementById('note-container');
   const emptyState = document.getElementById('empty-state');
   const noteContentWrapper = document.getElementById('note-content-wrapper');
   const noteFrontmatter = document.getElementById('note-frontmatter');
@@ -306,6 +309,7 @@
     // Update UI elements
     emptyState.style.display = 'none';
     noteContentWrapper.style.display = 'block';
+    if (noteContainer) noteContainer.style.display = 'block';
     editContainer.style.display = 'none';
 
     btnCopyMd.style.display = 'inline-flex';
@@ -330,6 +334,33 @@
     breadcrumbHtml += `<span class="breadcrumb-title" title="${data.title}">${data.title}</span>`;
     noteBreadcrumb.innerHTML = breadcrumbHtml;
 
+    // Helper to format frontmatter values (clickable link + copy button if URL or share_link)
+    function formatFrontmatterValue(key, val) {
+      if (val === null || val === undefined) return '';
+      const rawStr = typeof val === 'object' ? JSON.stringify(val) : String(val);
+      const isShareLink = String(key).toLowerCase() === 'share_link';
+      const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+
+      if (isShareLink || urlRegex.test(rawStr)) {
+        // Replace URLs with clickable link + copy button
+        const html = rawStr.replace(urlRegex, (url) => {
+          return `<span class="frontmatter-link-wrapper">` +
+            `<a href="${url}" target="_blank" rel="noopener noreferrer" class="frontmatter-url" title="Mở liên kết">${url}</a>` +
+            `<button type="button" class="btn-copy-link" data-url="${url}" title="Sao chép liên kết">` +
+              `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>` +
+              `<span>Copy</span>` +
+            `</button>` +
+          `</span>`;
+        });
+        return html;
+      }
+
+      // Escape plain text
+      const div = document.createElement('div');
+      div.textContent = rawStr;
+      return div.innerHTML;
+    }
+
     // Frontmatter box
     const hasFrontmatter = Object.keys(data.frontmatter || {}).length > 0 || (data.tags && data.tags.length > 0);
     if (hasFrontmatter) {
@@ -338,17 +369,17 @@
         fmHtml += `
           <div class="frontmatter-row">
             <span class="frontmatter-key">Tags:</span>
-            <div>${data.tags.map(t => `<span class="tag-pill" data-tag="${t}">#${t}</span>`).join('')}</div>
+            <div class="frontmatter-val">${data.tags.map(t => `<span class="tag-pill" data-tag="${t}">#${t}</span>`).join('')}</div>
           </div>
         `;
       }
       for (const [k, v] of Object.entries(data.frontmatter || {})) {
         if (k === 'tags' || k === 'tag') continue;
-        const valStr = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        const valHtml = formatFrontmatterValue(k, v);
         fmHtml += `
           <div class="frontmatter-row">
             <span class="frontmatter-key">${k}:</span>
-            <span>${valStr}</span>
+            <div class="frontmatter-val">${valHtml}</div>
           </div>
         `;
       }
@@ -643,8 +674,30 @@
     });
   }
 
+  // Sidebar Toggle (Instant toggle, no animation)
+  function toggleSidebar() {
+    if (sidebar) {
+      sidebar.classList.toggle('collapsed');
+      localStorage.setItem('obs_sidebar_collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+    }
+  }
+
+  if (localStorage.getItem('obs_sidebar_collapsed') === '1' && sidebar) {
+    sidebar.classList.add('collapsed');
+  }
+
+  if (btnToggleSidebar) {
+    btnToggleSidebar.addEventListener('click', toggleSidebar);
+  }
+
   // Global Shortcuts
   window.addEventListener('keydown', (e) => {
+    // Ctrl + \ -> Toggle sidebar
+    if ((e.ctrlKey || e.metaKey) && (e.key === '\\' || e.code === 'Backslash')) {
+      e.preventDefault();
+      toggleSidebar();
+      return;
+    }
     // Alt + Left Arrow -> Back in history
     if (e.altKey && e.key === 'ArrowLeft') {
       e.preventDefault();
@@ -694,6 +747,24 @@
 
   // Delegated clicks for note items in sidebar and breadcrumbs
   document.addEventListener('click', (e) => {
+    // Copy link in frontmatter
+    const btnCopyLink = e.target.closest('.btn-copy-link');
+    if (btnCopyLink && btnCopyLink.dataset.url) {
+      e.preventDefault();
+      e.stopPropagation();
+      const url = btnCopyLink.dataset.url;
+      navigator.clipboard.writeText(url).then(() => {
+        const origHtml = btnCopyLink.innerHTML;
+        btnCopyLink.innerHTML = '<span>Đã chép!</span>';
+        btnCopyLink.classList.add('copied');
+        setTimeout(() => {
+          btnCopyLink.innerHTML = origHtml;
+          btnCopyLink.classList.remove('copied');
+        }, 1500);
+      });
+      return;
+    }
+
     // Breadcrumb navigation click (e.g. click "note1" in "note1 > current note")
     const crumbEl = e.target.closest('.breadcrumb-crumb');
     if (crumbEl && crumbEl.dataset.path) {
@@ -851,19 +922,35 @@
     window.location.href = uri;
   });
 
-  // Quick Edit Mode
+  // Quick Edit Mode & Auto-resizing Textarea
+  function autoResizeTextarea() {
+    if (!editTextarea) return;
+    editTextarea.style.height = 'auto';
+    const newHeight = Math.max(380, editTextarea.scrollHeight);
+    editTextarea.style.height = newHeight + 'px';
+  }
+
+  if (editTextarea) {
+    editTextarea.addEventListener('input', autoResizeTextarea);
+  }
+
   btnQuickEdit.addEventListener('click', () => {
     if (!currentNote) return;
     isEditing = true;
+    if (noteContainer) noteContainer.style.display = 'none';
     noteContentWrapper.style.display = 'none';
     editContainer.style.display = 'flex';
     editTextarea.value = currentNote.raw_content;
-    editTextarea.focus();
+    setTimeout(() => {
+      autoResizeTextarea();
+      editTextarea.focus();
+    }, 10);
   });
 
   btnCancelEdit.addEventListener('click', () => {
     isEditing = false;
     editContainer.style.display = 'none';
+    if (noteContainer) noteContainer.style.display = 'block';
     noteContentWrapper.style.display = 'block';
   });
 
