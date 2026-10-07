@@ -33,7 +33,7 @@ Obsidian QuickView **does not replace Obsidian**. Use it for:
 ## Features
 
 ### FTS5 Instant Search
-- Vietnamese diacritic-insensitive: type `12 thi` → finds `12 Thì`
+- Unicode normalization search: type `12 thi` → finds `12 Thì`
 - Separate tabs: **Title / Content / Tag**
 - `all` mode: merges title + content results
 
