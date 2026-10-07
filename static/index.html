@@ -6,7 +6,7 @@
   <title>Obsidian QuickView</title>
   <link rel="stylesheet" href="/static/github-dark.min.css">
   <link rel="stylesheet" href="/static/katex.min.css">
-  <link rel="stylesheet" href="/static/app.css?v=6">
+  <link rel="stylesheet" href="/static/app.css?v=7">
 </head>
 <body>
   <!-- Sidebar -->
@@ -19,7 +19,12 @@
         </svg>
         <span>Obsidian QuickView</span>
       </div>
-      <button id="btn-theme" class="btn" title="Đổi giao diện Sáng / Tối" style="padding: 4px 6px;">🌓</button>
+      <button id="btn-theme" class="btn btn-icon" title="Đổi giao diện Sáng / Tối">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+        </svg>
+      </button>
     </div>
 
     <!-- Quick Switcher triggers -->
@@ -48,9 +53,18 @@
 
     <!-- Tabs -->
     <div class="sidebar-tabs">
-      <div class="sidebar-tab active" data-tab="tree">📁 Thư mục</div>
-      <div class="sidebar-tab" data-tab="recent">🕒 Gần đây</div>
-      <div class="sidebar-tab" data-tab="tags">🏷️ Tags</div>
+      <div class="sidebar-tab active" data-tab="tree">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        <span>Thư mục</span>
+      </div>
+      <div class="sidebar-tab" data-tab="recent">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        <span>Gần đây</span>
+      </div>
+      <div class="sidebar-tab" data-tab="tags">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+        <span>Tags</span>
+      </div>
     </div>
 
     <!-- Tab panes -->
@@ -70,17 +84,33 @@
   <!-- Main View Area -->
   <main id="main">
     <div class="top-navbar">
-      <div class="breadcrumb" id="note-breadcrumb">
-        <span>Chọn một ghi chú để bắt đầu xem</span>
+      <!-- Left: Navigation History & Breadcrumb -->
+      <div class="nav-left">
+        <button id="btn-history-back" class="btn btn-icon btn-history" title="Quay lại ghi chú trước (Alt + ←)" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button id="btn-history-forward" class="btn btn-icon btn-history" title="Tiến tới ghi chú kế (Alt + →)" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <div class="breadcrumb" id="note-breadcrumb">
+          <span>Chọn một ghi chú để bắt đầu xem</span>
+        </div>
       </div>
+
+      <!-- Right: Action Buttons -->
       <div class="nav-actions">
         <!-- Copy Context Dropdown Button -->
         <div class="dropdown-wrapper" id="context-dropdown-wrapper" style="display: none;">
-          <button id="btn-copy-context" class="btn btn-context" title="Copy toàn bộ nội dung note kèm các outgoing note và sơ đồ graph">
-            🌐 Copy Context (Cấp 1)
+          <button id="btn-copy-context" class="btn btn-context" title="Copy toàn bộ note kèm outgoing notes và sơ đồ tree">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            <span class="btn-text">Context (1)</span>
           </button>
           <button id="btn-context-menu-trigger" class="btn btn-context-arrow" title="Tùy chọn độ sâu Context">
-            ▾
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </button>
           <div class="dropdown-menu" id="context-dropdown-menu">
             <div class="dropdown-item active" data-depth="1">
@@ -101,13 +131,16 @@
         </div>
 
         <button id="btn-copy-md" class="btn" title="Copy mã Markdown" style="display: none;">
-          📋 Copy MD
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          <span class="btn-text">Copy MD</span>
         </button>
         <button id="btn-quick-edit" class="btn" title="Sửa nhanh ghi chú này" style="display: none;">
-          ✏️ Sửa nhanh
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          <span class="btn-text">Sửa nhanh</span>
         </button>
-        <button id="btn-open-obsidian" class="btn btn-primary" title="Mở ghi chú này bằng Obsidian Desktop" style="display: none;">
-          💎 Mở trong Obsidian
+        <button id="btn-open-obsidian" class="btn btn-primary" title="Mở ghi chú này bằng Obsidian Desktop (Alt + O)" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          <span class="btn-text">Obsidian</span>
         </button>
       </div>
     </div>
@@ -115,23 +148,26 @@
     <!-- Note Viewer -->
     <div id="note-container">
       <div class="empty-state" id="empty-state">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.3;">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.35;">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
           <polyline points="14 2 14 8 20 8"></polyline>
           <line x1="16" y1="13" x2="8" y2="13"></line>
           <line x1="16" y1="17" x2="8" y2="17"></line>
           <polyline points="10 9 9 9 8 9"></polyline>
         </svg>
-        <p style="font-size: 16px; font-weight: 500;">Chưa chọn ghi chú nào</p>
-        <p style="font-size: 13px;">Nhấn <kbd style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px;">Ctrl + K</kbd> để tìm kiếm tức thì hơn 3.500 ghi chú</p>
+        <p style="font-size: 16px; font-weight: 600;">Chưa chọn ghi chú nào</p>
+        <p style="font-size: 13px;">Nhấn <kbd class="shortcut-badge">Ctrl + K</kbd> để tìm kiếm tức thì hơn 3.500 ghi chú</p>
       </div>
 
       <div id="note-content-wrapper" style="display: none;">
-        <!-- Frontmatter box -->
-        <div id="note-frontmatter" class="frontmatter-box" style="display: none;"></div>
+        <!-- Paper Page Card -->
+        <div class="paper-sheet">
+          <!-- Frontmatter box -->
+          <div id="note-frontmatter" class="frontmatter-box" style="display: none;"></div>
 
-        <!-- Rendered Markdown Body -->
-        <article id="note-body" class="markdown-body"></article>
+          <!-- Rendered Markdown Body -->
+          <article id="note-body" class="markdown-body"></article>
+        </div>
 
         <!-- Backlinks Drawer -->
         <div id="note-backlinks" class="backlinks-section" style="display: none;">
@@ -200,6 +236,6 @@
   <script src="/static/marked.min.js"></script>
   <script src="/static/highlight.min.js"></script>
   <script src="/static/katex.min.js"></script>
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>

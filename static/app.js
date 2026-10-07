@@ -14,11 +14,17 @@
   let searchDebounceTimer = null;
   let currentTheme = localStorage.getItem('obs_theme') || 'dark';
 
+  // Navigation History Stack
+  const noteHistory = [];
+  let historyIndex = -1;
+
   // Apply theme
   document.documentElement.setAttribute('data-theme', currentTheme);
 
   // DOM Elements
   const btnTheme = document.getElementById('btn-theme');
+  const btnHistoryBack = document.getElementById('btn-history-back');
+  const btnHistoryForward = document.getElementById('btn-history-forward');
   const btnTriggerSearch = document.getElementById('btn-trigger-search');
   const btnTriggerContentSearch = document.getElementById('btn-trigger-content-search');
   const tabSearchTitle = document.getElementById('tab-search-title');
@@ -259,8 +265,18 @@
     }
   }
 
+  // Update History Button State
+  function updateHistoryButtons() {
+    if (btnHistoryBack) {
+      btnHistoryBack.disabled = historyIndex <= 0;
+    }
+    if (btnHistoryForward) {
+      btnHistoryForward.disabled = historyIndex >= noteHistory.length - 1;
+    }
+  }
+
   // Load Note
-  async function loadNote(path) {
+  async function loadNote(path, pushHistory = true) {
     if (!path.toLowerCase().endsWith('.md')) {
       // Chặn tuyệt đối không nạp file PDF hoặc binary vào view note gây lag/treo giao diện
       openAttachment(path);
@@ -276,6 +292,17 @@
     currentNote = data;
     isEditing = false;
 
+    // Track Navigation History
+    if (pushHistory) {
+      if (historyIndex === -1 || noteHistory[historyIndex].path !== path) {
+        // Truncate any forward history when branching to a new note
+        noteHistory.splice(historyIndex + 1);
+        noteHistory.push({ path: data.path, title: data.title });
+        historyIndex = noteHistory.length - 1;
+      }
+    }
+    updateHistoryButtons();
+
     // Update UI elements
     emptyState.style.display = 'none';
     noteContentWrapper.style.display = 'block';
@@ -286,10 +313,21 @@
     btnOpenObsidian.style.display = 'inline-flex';
     contextDropdownWrapper.style.display = 'inline-flex';
 
-    // Breadcrumb
-    const folderParts = (data.folder && data.folder !== '/') ? data.folder.split('/') : [];
-    let breadcrumbHtml = folderParts.map(p => `<span>${p}</span> &gt; `).join('');
-    breadcrumbHtml += `<span class="breadcrumb-title">${data.title}</span>`;
+    // Render Clickable Breadcrumbs:
+    // If user navigated from a previous note in history, display that note as clickable crumb!
+    let breadcrumbHtml = '';
+    if (historyIndex > 0) {
+      const prevNote = noteHistory[historyIndex - 1];
+      breadcrumbHtml += `<a class="breadcrumb-crumb" data-path="${prevNote.path}" title="Quay lại ${prevNote.title}">${prevNote.title}</a>`;
+      breadcrumbHtml += `<span class="breadcrumb-separator">›</span>`;
+    } else {
+      const folderParts = (data.folder && data.folder !== '/') ? data.folder.split('/') : [];
+      if (folderParts.length > 0) {
+        breadcrumbHtml += folderParts.map(p => `<span>${p}</span>`).join('<span class="breadcrumb-separator">›</span>');
+        breadcrumbHtml += `<span class="breadcrumb-separator">›</span>`;
+      }
+    }
+    breadcrumbHtml += `<span class="breadcrumb-title" title="${data.title}">${data.title}</span>`;
     noteBreadcrumb.innerHTML = breadcrumbHtml;
 
     // Frontmatter box
@@ -346,6 +384,11 @@
     });
   }
 
+  // Icons
+  const SVG_NOTE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="item-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>`;
+  const SVG_FOLDER = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="item-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+  const SVG_TAG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="item-icon"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>`;
+
   // Load Folder Tree
   async function loadTree() {
     const tree = await fetchJson('/api/tree');
@@ -355,7 +398,7 @@
       if (node.type === 'file') {
         return `
           <div class="file-item" data-path="${node.path}">
-            <span class="item-icon">📄</span>
+            ${SVG_NOTE}
             <span style="overflow: hidden; text-overflow: ellipsis;">${node.name}</span>
           </div>
         `;
@@ -375,7 +418,7 @@
       return `
         <details class="tree-folder" ${node.name === 'Vault' || node.name === 'Notes' ? 'open' : ''}>
           <summary class="folder-item">
-            <span class="item-icon">📁</span>
+            ${SVG_FOLDER}
             <strong>${node.name}</strong>
             <span class="item-badge">${count}</span>
           </summary>
@@ -396,7 +439,7 @@
 
     recentContainer.innerHTML = data.results.map(r => `
       <div class="recent-item" data-path="${r.path}">
-        <span class="item-icon">📄</span>
+        ${SVG_NOTE}
         <div style="overflow: hidden; text-overflow: ellipsis;">
           <div>${r.title}</div>
           <div style="font-size: 11px; opacity: 0.6;">${r.folder}</div>
@@ -412,7 +455,7 @@
 
     tagsContainer.innerHTML = data.tags.map(t => `
       <div class="tag-item" data-tag="${t.tag}">
-        <span class="item-icon">🏷️</span>
+        ${SVG_TAG}
         <span>#${t.tag}</span>
         <span class="item-badge">${t.count}</span>
       </div>
@@ -466,7 +509,10 @@
     searchResultsContainer.innerHTML = searchResults.map((r, i) => `
       <div class="search-item ${i === selectedIndex ? 'selected' : ''}" data-index="${i}" data-path="${r.path}">
         <div class="search-item-header">
-          <span class="search-item-title">${currentSearchMode === 'title' ? '📝 ' : '📄 '}${r.title}</span>
+          <span class="search-item-title" style="display: inline-flex; align-items: center; gap: 6px;">
+            ${SVG_NOTE}
+            <span>${r.title}</span>
+          </span>
           <span class="search-item-path">${r.folder}</span>
         </div>
         ${r.snippet_content ? `<div class="search-snippet">${r.snippet_content}</div>` : ''}
@@ -576,8 +622,42 @@
     }
   });
 
+  // History Back / Forward navigation
+  if (btnHistoryBack) {
+    btnHistoryBack.addEventListener('click', () => {
+      if (historyIndex > 0) {
+        historyIndex--;
+        const target = noteHistory[historyIndex];
+        loadNote(target.path, false);
+      }
+    });
+  }
+
+  if (btnHistoryForward) {
+    btnHistoryForward.addEventListener('click', () => {
+      if (historyIndex < noteHistory.length - 1) {
+        historyIndex++;
+        const target = noteHistory[historyIndex];
+        loadNote(target.path, false);
+      }
+    });
+  }
+
   // Global Shortcuts
   window.addEventListener('keydown', (e) => {
+    // Alt + Left Arrow -> Back in history
+    if (e.altKey && e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (btnHistoryBack && !btnHistoryBack.disabled) btnHistoryBack.click();
+      return;
+    }
+    // Alt + Right Arrow -> Forward in history
+    if (e.altKey && e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (btnHistoryForward && !btnHistoryForward.disabled) btnHistoryForward.click();
+      return;
+    }
+
     // Ctrl+Shift+K hoặc Ctrl+Shift+F -> Tìm kiếm theo nội dung
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k' || e.key === 'F' || e.key === 'f')) {
       e.preventDefault();
@@ -612,9 +692,17 @@
     }
   });
 
-  // Delegated clicks for note items in sidebar
+  // Delegated clicks for note items in sidebar and breadcrumbs
   document.addEventListener('click', (e) => {
-    // File in tree or recent
+    // Breadcrumb navigation click (e.g. click "note1" in "note1 > current note")
+    const crumbEl = e.target.closest('.breadcrumb-crumb');
+    if (crumbEl && crumbEl.dataset.path) {
+      e.preventDefault();
+      loadNote(crumbEl.dataset.path);
+      return;
+    }
+
+    // File in tree or recent or backlink
     const fileEl = e.target.closest('.file-item, .recent-item, .backlink-card');
     if (fileEl && fileEl.dataset.path) {
       loadNote(fileEl.dataset.path);
