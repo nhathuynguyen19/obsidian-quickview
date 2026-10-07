@@ -1,0 +1,370 @@
+/**
+ * Obsidian QuickView - Editor Styles
+ * CodeMirror 6 Live Preview Mode vs Source Mode, toolbar, and split panes.
+ */
+
+#edit-container {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.edit-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 24px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.edit-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.edit-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.edit-mode-selector {
+  display: flex;
+  align-items: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.btn-mode-tab {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.btn-mode-tab:hover {
+  color: var(--text-normal);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-mode-tab.active {
+  background: var(--bg-primary);
+  color: var(--accent-purple);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.edit-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-stats {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.edit-content-wrapper {
+  padding: 24px 20px 80px;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.edit-content-wrapper.split-mode {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 16px;
+  max-width: 100%;
+  padding: 16px 20px 80px;
+}
+
+.edit-paper-sheet {
+  min-height: 520px;
+  padding: 36px 44px 64px;
+  width: 100%;
+  max-width: 860px;
+  box-sizing: border-box;
+}
+
+.edit-content-wrapper.split-mode .edit-paper-sheet {
+  flex: 1 1 0;
+  width: calc(50% - 8px);
+  max-width: calc(50% - 8px);
+  margin: 0 !important;
+  min-width: 0;
+  padding: 28px 32px 48px;
+  overflow-y: auto;
+  height: calc(100vh - 130px);
+}
+
+.edit-content-wrapper.preview-mode .edit-paper-sheet {
+  margin: 0 auto !important;
+  max-width: 860px;
+  width: 100%;
+  overflow-y: auto;
+}
+
+#cm-editor-mount {
+  width: 100%;
+  min-height: 480px;
+}
+
+.cm-editor {
+  outline: none !important;
+  font-size: 14.5px;
+  min-height: 480px;
+}
+
+.cm-scroller {
+  overflow: auto;
+  line-height: 1.7;
+}
+
+.cm-line {
+  padding: 0 2px;
+}
+
+/* 1. Live Preview Mode Typography & Formatting */
+.cm-editor.cm-live-mode,
+.cm-editor.cm-live-mode .cm-content,
+.edit-mode-live .cm-editor,
+.edit-mode-live .cm-editor .cm-content {
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important;
+  font-size: 15px;
+}
+
+/* Headings in Live Preview */
+.cm-editor.cm-live-mode .cm-line.cm-line-h1,
+.edit-mode-live .cm-editor .cm-line.cm-line-h1 {
+  font-size: 1.85em;
+  font-weight: 700;
+  line-height: 1.35;
+  padding-top: 14px;
+  padding-bottom: 4px;
+  color: var(--text-normal);
+  letter-spacing: -0.3px;
+}
+
+.cm-editor.cm-live-mode .cm-line.cm-line-h2,
+.edit-mode-live .cm-editor .cm-line.cm-line-h2 {
+  font-size: 1.45em;
+  font-weight: 700;
+  line-height: 1.4;
+  padding-top: 12px;
+  padding-bottom: 4px;
+  color: var(--text-normal);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cm-editor.cm-live-mode .cm-line.cm-line-h3,
+.edit-mode-live .cm-editor .cm-line.cm-line-h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  line-height: 1.45;
+  padding-top: 10px;
+  padding-bottom: 3px;
+  color: var(--text-normal);
+}
+
+.cm-editor.cm-live-mode .cm-line.cm-line-h4,
+.edit-mode-live .cm-editor .cm-line.cm-line-h4 {
+  font-size: 1.12em;
+  font-weight: 600;
+  padding-top: 6px;
+  padding-bottom: 2px;
+  color: var(--text-normal);
+}
+
+.cm-editor.cm-live-mode .cm-line.cm-line-h5,
+.cm-editor.cm-live-mode .cm-line.cm-line-h6,
+.edit-mode-live .cm-editor .cm-line.cm-line-h5,
+.edit-mode-live .cm-editor .cm-line.cm-line-h6 {
+  font-size: 1.0em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cm-header-mark {
+  color: var(--accent-purple);
+  opacity: 0.55;
+  font-weight: normal;
+  margin-right: 2px;
+}
+
+/* Bold & Italic & Strikethrough */
+.cm-bold {
+  font-weight: 700 !important;
+  color: var(--text-normal);
+}
+
+.cm-italic {
+  font-style: italic !important;
+}
+
+.cm-strikethrough {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+/* Inline Code: Monospace pill */
+.cm-inline-code {
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace) !important;
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--text-normal);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  font-size: 0.9em;
+}
+
+[data-theme="light"] .cm-inline-code {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Code Blocks in Live Preview */
+.cm-editor.cm-live-mode .cm-line.cm-line-codeblock,
+.edit-mode-live .cm-editor .cm-line.cm-line-codeblock {
+  background-color: rgba(255, 255, 255, 0.035);
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace) !important;
+  font-size: 13.5px;
+  border-left: 3px solid var(--accent-purple);
+  padding-left: 14px;
+  line-height: 1.6;
+}
+
+[data-theme="light"] .cm-editor.cm-live-mode .cm-line.cm-line-codeblock,
+[data-theme="light"] .edit-mode-live .cm-editor .cm-line.cm-line-codeblock {
+  background-color: rgba(0, 0, 0, 0.035);
+}
+
+.cm-line.cm-line-codeblock-fence {
+  font-weight: 600;
+  color: var(--accent-purple);
+  opacity: 0.9;
+}
+
+/* Lists & Tasks */
+.cm-line.cm-line-list {
+  padding-left: 6px;
+}
+
+.cm-list-bullet {
+  color: var(--accent-purple);
+  font-weight: bold;
+}
+
+.cm-task-marker {
+  color: var(--accent-purple);
+  font-weight: bold;
+  font-family: var(--font-mono);
+  background: rgba(124, 58, 237, 0.1);
+  padding: 0 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+.cm-line-task-checked {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+/* Blockquotes */
+.cm-line.cm-line-blockquote {
+  border-left: 3px solid var(--border-color);
+  padding-left: 14px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Tables */
+.cm-line.cm-line-table {
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace) !important;
+  font-size: 13.5px;
+  background-color: rgba(124, 58, 237, 0.025);
+  letter-spacing: 0.2px;
+  border-bottom: 1px dashed rgba(124, 58, 237, 0.12);
+}
+
+/* Horizontal Rules */
+.cm-line.cm-line-hr {
+  border-bottom: 2px dashed var(--border-color);
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Wikilinks & Tags */
+.cm-wikilink {
+  color: var(--accent-purple);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  font-weight: 500;
+}
+
+.cm-tag-pill {
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--accent-purple);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.9em;
+}
+
+/* 2. Source Mode Typography */
+.cm-editor.cm-source-mode,
+.cm-editor.cm-source-mode .cm-content,
+.edit-mode-source .cm-editor,
+.edit-mode-source .cm-editor .cm-content {
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace) !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+
+.cm-editor.cm-source-mode .cm-line,
+.edit-mode-source .cm-editor .cm-line {
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace) !important;
+  font-size: 14px !important;
+  font-weight: normal !important;
+  border: none !important;
+  border-bottom: none !important;
+  border-left: none !important;
+  background: transparent !important;
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+}
+
+#edit-preview-pane {
+  overflow-y: auto;
+}

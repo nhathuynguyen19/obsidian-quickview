@@ -1,0 +1,45 @@
+/**
+ * Obsidian QuickView - Variables & Theme Palettes
+ */
+
+:root {
+  --bg-primary: #18191c;
+  --bg-secondary: #121316;
+  --bg-tertiary: #202227;
+  --bg-hover: #292b32;
+  --bg-active: #32353e;
+  --paper-bg: #1e2025;
+  --paper-border: #2c2f37;
+  --paper-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --text-normal: #e3e5e8;
+  --text-muted: #8e929b;
+  --text-accent: #8b7afc;
+  --text-accent-hover: #a597ff;
+  --border-color: #26282e;
+  --accent-purple: #8b7afc;
+  --accent-blue: #3b82f6;
+  --accent-green: #10b981;
+  --accent-yellow: #f59e0b;
+  --accent-red: #ef4444;
+  --code-bg: #141518;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Charter", "Georgia", "Cambria", "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", "Fira Code", Consolas, Menlo, Monaco, monospace;
+}
+
+[data-theme="light"] {
+  --bg-primary: #ece8e0;
+  --bg-secondary: #f4f0e8;
+  --bg-tertiary: #e3ded4;
+  --bg-hover: #ded8cd;
+  --bg-active: #d4cdc0;
+  --paper-bg: #faf7f0;
+  --paper-border: #dfd9ce;
+  --paper-shadow: 0 4px 20px rgba(60, 50, 40, 0.07), 0 1px 3px rgba(60, 50, 40, 0.05);
+  --text-normal: #2a2824;
+  --text-muted: #6e6b64;
+  --text-accent: #6347e3;
+  --text-accent-hover: #5035cc;
+  --border-color: #d8d2c5;
+  --code-bg: #efebe2;
+}

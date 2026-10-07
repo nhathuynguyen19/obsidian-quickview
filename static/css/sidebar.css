@@ -1,0 +1,218 @@
+/**
+ * Obsidian QuickView - Sidebar Styles
+ * Tree view, recent notes, and tags panes.
+ */
+
+#sidebar {
+  width: 320px;
+  min-width: 260px;
+  max-width: 450px;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+#sidebar.collapsed {
+  display: none !important;
+}
+
+.sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vault-switcher-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.vault-switcher-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+}
+
+.vault-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+
+.vault-icon-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--accent-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vault-text-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.vault-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.vault-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vault-dropdown-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.vault-switcher-btn:hover .vault-dropdown-chevron {
+  color: var(--text-normal);
+}
+
+.vault-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-search-trigger {
+  margin: 12px 16px 8px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-search-trigger:hover {
+  background: var(--bg-hover);
+  color: var(--text-normal);
+  border-color: var(--accent-purple);
+}
+
+.shortcut-badge {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 8px;
+}
+
+.sidebar-tab {
+  flex: 1;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.sidebar-tab.active {
+  color: var(--text-normal);
+  border-bottom-color: var(--accent-purple);
+  font-weight: 500;
+}
+
+.tab-pane {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  display: none;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+/* Tree & List Items */
+.tree-node {
+  padding-left: 14px;
+}
+
+.folder-item, .file-item, .recent-item, .tag-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 1px 6px;
+  font-size: 13px;
+  color: var(--text-normal);
+  transition: background 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-item:hover, .file-item:hover, .recent-item:hover, .tag-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.file-item.active, .recent-item.active {
+  background-color: var(--bg-active);
+  color: var(--text-accent);
+  font-weight: 500;
+}
+
+.item-icon {
+  font-size: 13px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.item-badge {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
