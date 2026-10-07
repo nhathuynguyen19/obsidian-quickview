@@ -183,3 +183,7 @@ obsidian-quickview/
 | Syntax Highlight | highlight.js (offline) |
 | Launcher | Bash + Firefox/Chrome/Brave |
 | Package Manager | pnpm |
+
+## Giấy Phép
+
+Distributed under the [MIT License](LICENSE).
