@@ -1,4 +1,4 @@
-# Obsidian QuickView ⚡
+# Obsidian QuickView
 
 Ứng dụng mini siêu nhẹ, khởi động tức thì để xem và tra cứu nhanh ghi chú trong vault Obsidian mà **không cần mở Obsidian nặng**.
 
@@ -10,7 +10,7 @@
 
 ---
 
-## 🌟 Tính Năng Nổi Bật
+## Tính Năng Nổi Bật
 
 ### 1. Tìm kiếm toàn văn tức thì (Instant FTS5 Search)
 - Hỗ trợ tiếng Việt có dấu và không dấu (gõ `12 thi` tìm ra ngay `12 Thì`).
@@ -29,11 +29,11 @@
 - **Frontmatter**: Hiển thị metadata YAML, nhấp vào liên kết trong frontmatter để mở ghi chú liên quan.
 
 ### 3. Chỉnh sửa nhanh với CodeMirror 6 (Quick Edit)
-- **4 chế độ编辑**:
-  - 🔴 **Live**: Soạn thảo trực tiếp, preview tự động cập nhật.
-  - 📄 **Source**: Chỉ hiển thị mã nguồn Markdown thuần.
-  - ⬜ **Split**: Chia đôi màn hình — source ↔ preview đồng thời.
-  - 👁️ **Preview**: Chỉ xem kết quả render (read-only).
+- **4 chế độ**:
+  - **Live**: Soạn thảo trực tiếp, preview tự động cập nhật.
+  - **Source**: Chỉ hiển thị mã nguồn Markdown thuần.
+  - **Split**: Chia đôi màn hình — source ↔ preview đồng thời.
+  - **Preview**: Chỉ xem kết quả render (read-only).
 - Chế độ cuối cùng lưu lựa chọn vào localStorage, mở lại vẫn nhớ.
 - Lưu ngay `Ctrl + S`, tự động re-index ghi chú sau khi lưu.
 - **TOC Navigation**: Bảng mục lục bên phải tự động sinh từ heading trong ghi chú, cuốn tới section khi nhấp.
@@ -65,7 +65,7 @@
 
 ---
 
-## 🚀 Cách Khởi Động
+## Cách Khởi Động
 
 ### 1. Dùng lệnh Terminal:
 ```bash
@@ -95,7 +95,7 @@ obs-view --restart
 
 ---
 
-## ⌨️ Phím Tắt Tiện Dụng
+## Phím Tắt Tiện Dụng
 
 | Phím tắt | Chức năng |
 |---|---|
@@ -108,7 +108,7 @@ obs-view --restart
 
 ---
 
-## 📁 Cấu Trúc Dự Án
+## Cấu Trúc Dự Án
 
 ```
 obsidian-quickview/
@@ -150,7 +150,7 @@ obsidian-quickview/
 
 ---
 
-## 🔌 API Endpoints
+## API Endpoints
 
 | Endpoint | Method | Mô tả |
 |---|---|---|
@@ -171,7 +171,7 @@ obsidian-quickview/
 
 ---
 
-## 🛠️ Công Nghệ Sử Dụng
+## Công Nghệ Sử Dụng
 
 | Thành phần | Công nghệ |
 |---|---|
