@@ -1,81 +1,81 @@
 # Obsidian QuickView
 
-Ứng dụng xem và chỉnh sửa ghi chú Obsidian **nhẹ nhất**, khởi động tức thì — dành cho máy cấu hình yếu (Intel Celeron, RAM 4GB).
+The **lightest** Obsidian vault viewer and editor — instant launch for low-spec machines (Intel Celeron, 4GB RAM).
 
-## Hiệu năng thực tế
+## Real-World Performance
 
-| Chỉ số | Obsidian (Electron) | Obsidian QuickView |
+| Metric | Obsidian (Electron) | Obsidian QuickView |
 |---|---|---|
-| RAM khi mở | 400MB – 1GB | **~25MB** (server) + ~70MB (tab browser) |
-| CPU khi khởi động | Cao, tải liên tục | **Không đáng kể** |
-| Index vault lần đầu | 10–30 giây | **~1–3 giây** (FTS5) |
-| Khởi động app | 5–15 giây | **< 0.2 giây** |
+| RAM at startup | 400MB – 1GB | **~25MB** (server) + ~70MB (browser tab) |
+| CPU on launch | High, sustained | **Negligible** |
+| First vault index | 10–30s | **~1–3s** (FTS5) |
+| App launch | 5–15s | **< 0.2s** |
 
-> **Lưu ý**: Con số trên đo trên thực tế bằng `ps` — server Python độc lập, tab browser chỉ tải static HTML/JS, không đóng gói Electron nặng.
+> Numbers measured via `ps` — standalone Python server, browser tab loads static HTML/JS, no Electron overhead.
 
-## Quan trọng: hiểu đúng vai trò của app
+## Know the limits
 
-Obsidian QuickView **không thay thế Obsidian**. App chỉ dùng cho:
+Obsidian QuickView **does not replace Obsidian**. Use it for:
 
-- ✅ Xem nhanh ghi chú Markdown
-- ✅ Tìm kiếm tức thì toàn bộ vault
-- ✅ Chỉnh sửa cơ bản (soạn Markdown, lưu `Ctrl+S`)
-- ✅ Xem công thức LaTeX, wikilinks, backlinks, frontmatter
+- ✅ Quick Markdown note viewing
+- ✅ Instant full-text vault search
+- ✅ Basic editing (write Markdown, `Ctrl+S` save)
+- ✅ LaTeX formulas, wikilinks, backlinks, frontmatter
 
-❌ **Vẫn cần Obsidian khi**:
-- Cài plugin community (Templater, Dataview, Obsidian Charts…)
-- Dùng Obsidian Canvas, Graph View, Daily Notes template
-- Cần syncing qua Obsidian Sync/Remotely Save
-- Chỉnh sửa frontmatter YAML phức tạp, use Obsidian core features
+❌ **Still need Obsidian for**:
+- Community plugins (Templater, Dataview, Obsidian Charts…)
+- Canvas, Graph View, Daily Notes templates
+- Obsidian Sync / Remotely Save
+- Complex YAML frontmatter editing, core Obsidian features
 
-**Quy tắc**: Mở QuickView khi cần **đọc/viết nhanh**. Mở Obsidian khi cần **sản xuất nội dung chuyên sâu**.
+**Rule**: QuickView for **fast reading/writing**. Obsidian for **deep content work**.
 
-## Tính năng chính
+## Features
 
-### Tìm kiếm toàn văn FTS5
-- Tìm tiếng Việt có dấu/không dấu: gõ `12 thi` ra `12 Thì`
-- Tách tab: **Title / Content / Tag** — chọn đúng nơi cần tìm
-- Chế độ `all`: gộp kết quả title + content
+### FTS5 Instant Search
+- Vietnamese diacritic-insensitive: type `12 thi` → finds `12 Thì`
+- Separate tabs: **Title / Content / Tag**
+- `all` mode: merges title + content results
 
-### CodeMirror 6 — 4 chế độ edit
-- **Live**: soạn + preview đồng thời
-- **Source**: chỉ mã nguồn
-- **Split**: chia đôi màn hình
-- **Preview**: chỉ xem kết quả
+### CodeMirror 6 — 4 Edit Modes
+- **Live**: edit + preview together
+- **Source**: raw Markdown only
+- **Split**: side-by-side source & preview
+- **Preview**: read-only rendered view
 
-### Quản lý vault
-- Chuyển vault không restart (vault switcher)
-- Lưu vault mặc định tự động
-- Tự phát hiện vault từ Obsidian Desktop + custom path
+### Vault Management
+- Switch vault without restart
+- Auto-detect Obsidian Desktop vaults + custom paths
+- Persistent default vault selection
 
 ### Git Sync
-- Một nút: `git add → commit → push origin`
-- Kiểm tra trước: repo hợp lệ, user.name/email, remote origin
+- One button: `git add → commit → push origin`
+- Pre-checks: valid repo, user.name/email, remote origin
 
 ### Context Export + Mermaid
-- Xuất ngữ cảnh liên kết ra Markdown (depth 1–2)
-- Sơ đồ đồ thị Mermaid tự sinh
+- Export linked-note context as Markdown (depth 1–2)
+- Auto-generated Mermaid graph diagram
 
-## Cài đặt
+## Installation
 
 ```bash
-# Cài lệnh obs-view
+# Install obs-view command
 bash install.sh
 
-# Mở ứng dụng
+# Launch app
 obs-view
 
-# Mở thẳng ghi chú
+# Open a specific note
 obs-view "12 Thì"
 
-# Đánh lại index
+# Rebuild index
 obs-view --reindex
 ```
 
-## Công nghệ
+## Tech Stack
 
-Python 3.12 Standard Library + SQLite FTS5 + CodeMirror 6 + KaTeX — zero external dependencies, chạy offline hoàn toàn.
+Python 3.12 Standard Library + SQLite FTS5 + CodeMirror 6 + KaTeX — zero external dependencies, fully offline.
 
-## Giấy phép
+## License
 
-MIT License — xem [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
