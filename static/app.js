@@ -25,6 +25,9 @@
   const sidebar = document.getElementById('sidebar');
   const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
   const btnTheme = document.getElementById('btn-theme');
+  const btnSettings = document.getElementById('btn-settings');
+  const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
+  const btnCloseSettingsModal = document.getElementById('btn-close-settings-modal');
   const btnHistoryBack = document.getElementById('btn-history-back');
   const btnHistoryForward = document.getElementById('btn-history-forward');
   const btnTriggerSearch = document.getElementById('btn-trigger-search');
@@ -439,7 +442,9 @@
 
     // Backlinks
     if (data.backlinks && data.backlinks.length > 0) {
-      backlinksCountLabel.textContent = `Liên kết ngược (${data.backlinks.length} ghi chú tham chiếu tới đây)`;
+      backlinksCountLabel.textContent = window.I18n
+        ? window.I18n.t('note.backlinksCount', { count: data.backlinks.length })
+        : `Liên kết ngược (${data.backlinks.length} ghi chú tham chiếu tới đây)`;
       backlinksList.innerHTML = data.backlinks.map(b => `
         <div class="backlink-card" data-path="${b.path}">
           <span>📝 <strong>${b.title}</strong></span>
@@ -544,9 +549,13 @@
     if (tabSearchContent) tabSearchContent.classList.toggle('active', mode === 'content');
 
     if (mode === 'title') {
-      searchInput.placeholder = 'Tìm theo tiêu đề ghi chú... (Ctrl K)';
+      searchInput.placeholder = window.I18n
+        ? window.I18n.t('search.inputPlaceholderTitle')
+        : 'Tìm theo tiêu đề ghi chú... (Ctrl K)';
     } else {
-      searchInput.placeholder = 'Tìm theo nội dung markdown... (Ctrl Shift F)';
+      searchInput.placeholder = window.I18n
+        ? window.I18n.t('search.inputPlaceholderContent')
+        : 'Tìm theo nội dung markdown... (Ctrl Shift F)';
     }
 
     if (searchModalBackdrop.classList.contains('active')) {
@@ -556,23 +565,24 @@
 
   // Quick Switcher Search
   async function doSearch(query) {
-    searchStatusText.textContent = 'Đang tìm kiếm...';
+    searchStatusText.textContent = window.I18n ? window.I18n.t('search.statusSearching') : 'Đang tìm kiếm...';
     const mode = currentSearchMode;
     const data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}&mode=${encodeURIComponent(mode)}&limit=40`);
     if (!data || !data.results) {
-      searchStatusText.textContent = 'Lỗi tìm kiếm';
+      searchStatusText.textContent = window.I18n ? window.I18n.t('app.error') : 'Lỗi tìm kiếm';
       return;
     }
 
     searchResults = data.results;
     selectedIndex = 0;
-    const modeLabel = mode === 'title' ? 'kết quả tiêu đề' : 'kết quả nội dung';
-    searchStatusText.textContent = `${searchResults.length} ${modeLabel}`;
+    searchStatusText.textContent = window.I18n
+      ? window.I18n.t('search.statusFound', { count: searchResults.length })
+      : `${searchResults.length} kết quả`;
 
     if (searchResults.length === 0) {
       searchResultsContainer.innerHTML = `
         <div style="padding: 24px; text-align: center; color: var(--text-muted);">
-          Không tìm thấy ghi chú nào khớp (${mode === 'title' ? 'theo tiêu đề' : 'trong nội dung'})
+          ${window.I18n ? window.I18n.t('search.statusNotFound') : 'Không tìm thấy ghi chú nào phù hợp'}
         </div>
       `;
       return;
@@ -791,9 +801,21 @@
       }
       return;
     }
+    // Ctrl + , -> Mở cài đặt (Settings)
+    if ((e.ctrlKey || e.metaKey) && (e.key === ',' || e.code === 'Comma')) {
+      e.preventDefault();
+      if (settingsModalBackdrop && settingsModalBackdrop.classList.contains('active')) {
+        closeSettingsModal();
+      } else {
+        openSettingsModal();
+      }
+      return;
+    }
     // Escape
     if (e.key === 'Escape') {
-      if (vaultModalBackdrop && vaultModalBackdrop.classList.contains('active')) {
+      if (settingsModalBackdrop && settingsModalBackdrop.classList.contains('active')) {
+        closeSettingsModal();
+      } else if (vaultModalBackdrop && vaultModalBackdrop.classList.contains('active')) {
         if (!isCurrentVaultMissing) {
           closeVaultModal();
         }
@@ -815,7 +837,7 @@
       const url = btnCopyLink.dataset.url;
       navigator.clipboard.writeText(url).then(() => {
         const origHtml = btnCopyLink.innerHTML;
-        btnCopyLink.innerHTML = '<span>Đã chép!</span>';
+        btnCopyLink.innerHTML = `<span>${window.I18n ? window.I18n.t('app.copied') : 'Đã chép!'}</span>`;
         btnCopyLink.classList.add('copied');
         setTimeout(() => {
           btnCopyLink.innerHTML = origHtml;
@@ -905,6 +927,14 @@
   });
 
   // Copy Context Button & Depth Dropdown
+  function updateContextBtnText() {
+    if (!btnCopyContext) return;
+    const label = window.I18n
+      ? window.I18n.t('nav.copyContext', { depth: selectedContextDepth })
+      : `Context (${selectedContextDepth})`;
+    btnCopyContext.innerHTML = `🌐 ${label}`;
+  }
+
   btnContextMenuTrigger.addEventListener('click', (e) => {
     e.stopPropagation();
     contextDropdownMenu.classList.toggle('show');
@@ -923,7 +953,7 @@
         el.querySelector('.depth-check').textContent = isCur ? '✓' : '';
       });
 
-      btnCopyContext.innerHTML = `🌐 Copy Context (Cấp ${depth})`;
+      updateContextBtnText();
       contextDropdownMenu.classList.remove('show');
     });
   });
@@ -967,7 +997,7 @@
     if (!currentNote) return;
     navigator.clipboard.writeText(currentNote.raw_content).then(() => {
       const originalText = btnCopyMd.textContent;
-      btnCopyMd.textContent = '✅ Đã copy!';
+      btnCopyMd.textContent = window.I18n ? ('✅ ' + window.I18n.t('app.copied')) : '✅ Đã copy!';
       setTimeout(() => btnCopyMd.textContent = originalText, 1500);
     });
   });
@@ -1062,6 +1092,12 @@
   function generateToc() {
     if (!tocList) return;
 
+    if (!isEditing && !currentNote) {
+      tocList.innerHTML = `<div class="toc-empty">${window.I18n ? window.I18n.t('toc.emptyNoNote') : 'Chưa chọn ghi chú nào'}</div>`;
+      if (tocCountBadge) tocCountBadge.textContent = '0';
+      return;
+    }
+
     // Quick Edit Mode: Extract headings directly from CodeMirror Editor
     if (isEditing && cmEditorInstance) {
       const doc = cmEditorInstance.view.state.doc;
@@ -1080,7 +1116,7 @@
       }
 
       if (headings.length === 0) {
-        tocList.innerHTML = '<div class="toc-empty">Ghi chú không có tiêu đề</div>';
+        tocList.innerHTML = `<div class="toc-empty">${window.I18n ? window.I18n.t('toc.emptyNoHeadings') : 'Ghi chú không có tiêu đề'}</div>`;
         if (tocCountBadge) tocCountBadge.textContent = '0';
         return;
       }
@@ -1093,7 +1129,9 @@
         a.className = `toc-item toc-level-${h.level}`;
         a.dataset.lineNumber = h.lineNumber;
         a.textContent = h.text;
-        a.title = `Dòng ${h.lineNumber}: ${h.text}`;
+        a.title = window.I18n
+          ? window.I18n.t('toc.lineJumpTitle', { line: h.lineNumber, title: h.text })
+          : `Dòng ${h.lineNumber}: ${h.text}`;
 
         a.addEventListener('click', (e) => {
           e.preventDefault();
@@ -1143,7 +1181,7 @@
     const headings = Array.from(noteBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
 
     if (headings.length === 0) {
-      tocList.innerHTML = '<div class="toc-empty">Ghi chú không có tiêu đề</div>';
+      tocList.innerHTML = `<div class="toc-empty">${window.I18n ? window.I18n.t('toc.emptyNoHeadings') : 'Ghi chú không có tiêu đề'}</div>`;
       if (tocCountBadge) tocCountBadge.textContent = '0';
       return;
     }
@@ -1274,7 +1312,9 @@
     if (!editStats) return;
     const lines = text.split('\n').length;
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    editStats.textContent = `${words} từ | ${lines} dòng`;
+    editStats.textContent = window.I18n
+      ? window.I18n.t('editor.stats', { words, lines })
+      : `${words} từ | ${lines} dòng`;
   }
 
   // Update Live Preview Pane
@@ -1413,7 +1453,7 @@
     isSaving = true;
     const savePath = currentNote.path;
     const newContent = cmEditorInstance.getValue();
-    btnSaveEdit.textContent = 'Đang lưu...';
+    btnSaveEdit.textContent = window.I18n ? window.I18n.t('editor.saving') : 'Đang lưu...';
 
     try {
       const res = await fetch('/api/save', {
@@ -1426,7 +1466,7 @@
       });
       const data = await res.json();
       if (res.ok && data.status === 'saved') {
-        btnSaveEdit.textContent = '✅ Đã lưu';
+        btnSaveEdit.textContent = window.I18n ? window.I18n.t('editor.saved') : '✅ Đã lưu';
         // Cập nhật raw_content cục bộ ngay lập tức
         currentNote.raw_content = newContent;
 
@@ -1464,15 +1504,15 @@
         }
 
         setTimeout(() => {
-          btnSaveEdit.textContent = '💾 Lưu ghi chú';
+          btnSaveEdit.textContent = window.I18n ? window.I18n.t('editor.save') : '💾 Lưu ghi chú';
         }, 800);
       } else {
-        alert('Lỗi lưu ghi chú: ' + (data.error || 'Unknown error'));
-        btnSaveEdit.textContent = '💾 Lưu ghi chú';
+        alert((window.I18n ? window.I18n.t('editor.saveError') : 'Lỗi lưu ghi chú: ') + (data.error || 'Unknown error'));
+        btnSaveEdit.textContent = window.I18n ? window.I18n.t('editor.save') : '💾 Lưu ghi chú';
       }
     } catch (e) {
-      alert('Lỗi kết nối khi lưu: ' + e.message);
-      btnSaveEdit.textContent = '💾 Lưu ghi chú';
+      alert((window.I18n ? window.I18n.t('editor.connectError') : 'Lỗi kết nối khi lưu: ') + e.message);
+      btnSaveEdit.textContent = window.I18n ? window.I18n.t('editor.save') : '💾 Lưu ghi chú';
     } finally {
       isSaving = false;
     }
@@ -1491,7 +1531,9 @@
     if (btnQuickEdit) btnQuickEdit.style.display = 'none';
     if (btnOpenObsidian) btnOpenObsidian.style.display = 'none';
     if (contextDropdownWrapper) contextDropdownWrapper.style.display = 'none';
-    if (noteBreadcrumb) noteBreadcrumb.innerHTML = '<span>Chọn một ghi chú để bắt đầu xem</span>';
+    if (noteBreadcrumb) {
+      noteBreadcrumb.innerHTML = `<span>${window.I18n ? window.I18n.t('nav.selectNotePrompt') : 'Chọn một ghi chú để bắt đầu xem'}</span>`;
+    }
     noteHistory.length = 0;
     historyIndex = -1;
     updateHistoryButtons();
@@ -1508,7 +1550,10 @@
     vaultItemsList.innerHTML = '';
 
     if (!knownVaults || knownVaults.length === 0) {
-      vaultItemsList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">Chưa tìm thấy vault nào. Vui lòng thêm đường dẫn bên dưới.</div>';
+      const emptyMsg = window.I18n
+        ? window.I18n.t('vault.emptyVaults')
+        : 'Chưa tìm thấy vault nào. Vui lòng thêm đường dẫn bên dưới.';
+      vaultItemsList.innerHTML = `<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">${emptyMsg}</div>`;
       return;
     }
 
@@ -1557,26 +1602,28 @@
       if (!vault.exists) {
         const badgeMissing = document.createElement('span');
         badgeMissing.className = 'vault-badge badge-missing';
-        badgeMissing.textContent = 'Đã biến mất';
+        badgeMissing.textContent = window.I18n ? window.I18n.t('vault.badgeMissing') : 'Đã biến mất';
         badges.appendChild(badgeMissing);
       } else {
         if (vault.is_current) {
           const badgeCur = document.createElement('span');
           badgeCur.className = 'vault-badge badge-current';
-          badgeCur.textContent = 'Đang mở';
+          badgeCur.textContent = window.I18n ? window.I18n.t('vault.badgeCurrent') : 'Đang mở';
           badges.appendChild(badgeCur);
         }
         if (vault.is_default) {
           const badgeDef = document.createElement('span');
           badgeDef.className = 'vault-badge badge-default';
-          badgeDef.textContent = 'Mặc định';
+          badgeDef.textContent = window.I18n ? window.I18n.t('vault.badgeDefault') : 'Mặc định';
           badges.appendChild(badgeDef);
         }
       }
 
       const badgeSource = document.createElement('span');
       badgeSource.className = 'vault-badge badge-source';
-      badgeSource.textContent = vault.source === 'obsidian' ? 'Obsidian' : 'Tùy chọn';
+      badgeSource.textContent = vault.source === 'obsidian'
+        ? (window.I18n ? window.I18n.t('vault.badgeSourceObsidian') : 'Obsidian')
+        : (window.I18n ? window.I18n.t('vault.badgeSourceCustom') : 'Tùy chọn');
       badges.appendChild(badgeSource);
 
       card.appendChild(left);
@@ -1767,7 +1814,95 @@
     });
   }
 
+  // Settings Modal Logic
+  function updateSettingsLanguageUI() {
+    const currentLang = window.I18n ? window.I18n.getLanguage() : (localStorage.getItem('obs_lang') || 'vi');
+    const cards = document.querySelectorAll('.settings-lang-card');
+    cards.forEach(card => {
+      const lang = card.dataset.lang;
+      const radio = card.querySelector('input[type="radio"]');
+      if (lang === currentLang) {
+        card.classList.add('active');
+        if (radio) radio.checked = true;
+      } else {
+        card.classList.remove('active');
+        if (radio) radio.checked = false;
+      }
+    });
+  }
+
+  function openSettingsModal() {
+    if (settingsModalBackdrop) {
+      updateSettingsLanguageUI();
+      settingsModalBackdrop.classList.add('active');
+    }
+  }
+
+  function closeSettingsModal() {
+    if (settingsModalBackdrop) {
+      settingsModalBackdrop.classList.remove('active');
+    }
+  }
+
+  if (btnSettings) {
+    btnSettings.addEventListener('click', openSettingsModal);
+  }
+
+  if (btnCloseSettingsModal) {
+    btnCloseSettingsModal.addEventListener('click', closeSettingsModal);
+  }
+
+  if (settingsModalBackdrop) {
+    settingsModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === settingsModalBackdrop) {
+        closeSettingsModal();
+      }
+    });
+  }
+
+  // Language switcher card click handlers
+  document.querySelectorAll('.settings-lang-card').forEach(card => {
+    card.addEventListener('click', async () => {
+      const lang = card.dataset.lang;
+      if (lang && window.I18n && window.I18n.getLanguage() !== lang) {
+        await window.I18n.setLanguage(lang);
+        updateSettingsLanguageUI();
+      }
+    });
+  });
+
+  // Re-sync dynamic UI elements on language change
+  window.addEventListener('languageChanged', (e) => {
+    updateSettingsLanguageUI();
+    updateContextBtnText();
+    renderVaultCards();
+    generateToc();
+    if (!currentNote && noteBreadcrumb) {
+      noteBreadcrumb.innerHTML = `<span>${window.I18n ? window.I18n.t('nav.selectNotePrompt') : 'Chọn một ghi chú để bắt đầu xem'}</span>`;
+    } else if (currentNote) {
+      if (backlinksCountLabel && currentNote.backlinks && currentNote.backlinks.length > 0) {
+        backlinksCountLabel.textContent = window.I18n
+          ? window.I18n.t('note.backlinksCount', { count: currentNote.backlinks.length })
+          : `Liên kết ngược (${currentNote.backlinks.length} ghi chú tham chiếu tới đây)`;
+      }
+    }
+    if (isEditing && cmEditorInstance) {
+      updateEditStats(cmEditorInstance.getValue());
+    }
+    setSearchMode(currentSearchMode);
+  });
+
   // Initial Load
+  if (window.I18n) {
+    window.I18n.init().then(() => {
+      updateSettingsLanguageUI();
+      updateContextBtnText();
+    });
+  } else {
+    updateSettingsLanguageUI();
+    updateContextBtnText();
+  }
+
   setTocOpen(isTocOpen);
   checkVaultsStatus(true);
   loadTree();
