@@ -1906,6 +1906,12 @@ body {
   user-select: none;
 }
 
+.math-lazy {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
 /* ==========================================================================
    Settings Modal
    ========================================================================== */
