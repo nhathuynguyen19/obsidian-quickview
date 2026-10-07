@@ -410,6 +410,15 @@ function createEditor(parent, options = {}) {
     focus() {
       view.focus();
     },
+    scrollToLine(lineNumber) {
+      if (lineNumber < 1 || lineNumber > view.state.doc.lines) return;
+      const line = view.state.doc.line(lineNumber);
+      view.dispatch({
+        selection: { anchor: line.from },
+        scrollIntoView: true
+      });
+      view.focus();
+    },
     destroy() {
       view.destroy();
     }

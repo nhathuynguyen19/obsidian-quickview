@@ -68,6 +68,12 @@
   const btnQuickEdit = document.getElementById('btn-quick-edit');
   const btnOpenObsidian = document.getElementById('btn-open-obsidian');
   const btnSyncVault = document.getElementById('btn-sync-vault');
+  const btnToggleToc = document.getElementById('btn-toggle-toc');
+  const tocPanel = document.getElementById('toc-panel');
+  const tocList = document.getElementById('toc-list');
+  const tocCountBadge = document.getElementById('toc-count-badge');
+  let isTocOpen = localStorage.getItem('obs_toc_open') !== 'false';
+  let tocScrollDebounce = null;
 
   const editContainer = document.getElementById('edit-container');
   const editContentWrapper = document.getElementById('edit-content-wrapper');
@@ -427,6 +433,9 @@
     // Render markdown content
     noteBody.innerHTML = renderMarkdown(data.content, data.path);
 
+    // Generate Table of Contents (Outline)
+    generateToc();
+
     // Backlinks
     if (data.backlinks && data.backlinks.length > 0) {
       backlinksCountLabel.textContent = `Liên kết ngược (${data.backlinks.length} ghi chú tham chiếu tới đây)`;
@@ -749,6 +758,13 @@
       return;
     }
 
+    // Ctrl+Shift+O -> Bật / Tắt Mục lục (Outline)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+      e.preventDefault();
+      setTocOpen(!isTocOpen);
+      return;
+    }
+
     // Ctrl+Shift+K hoặc Ctrl+Shift+F -> Tìm kiếm theo nội dung
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k' || e.key === 'F' || e.key === 'f')) {
       e.preventDefault();
@@ -1011,6 +1027,240 @@
     });
   }
 
+  // ==========================================================================
+  // Table of Contents (Outline) Logic & Scrollspy
+  // ==========================================================================
+  let tocUpdateDebounce = null;
+  function scheduleTocUpdate() {
+    clearTimeout(tocUpdateDebounce);
+    tocUpdateDebounce = setTimeout(() => {
+      if (isEditing) {
+        generateToc();
+      }
+    }, 250);
+  }
+
+  function setTocOpen(open) {
+    isTocOpen = open;
+    localStorage.setItem('obs_toc_open', open ? 'true' : 'false');
+    if (tocPanel) {
+      if (open) {
+        tocPanel.classList.remove('collapsed');
+        tocPanel.style.display = 'flex';
+      } else {
+        tocPanel.classList.add('collapsed');
+        tocPanel.style.display = 'none';
+      }
+    }
+    if (btnToggleToc) {
+      btnToggleToc.classList.toggle('active', open);
+    }
+  }
+
+  function generateToc() {
+    if (!tocList) return;
+
+    // Quick Edit Mode: Extract headings directly from CodeMirror Editor
+    if (isEditing && cmEditorInstance) {
+      const doc = cmEditorInstance.view.state.doc;
+      const headings = [];
+      for (let l = 1; l <= doc.lines; l++) {
+        const line = doc.line(l);
+        const m = line.text.match(/^(#{1,6})\s+(.+)$/);
+        if (m) {
+          headings.push({
+            level: m[1].length,
+            text: m[2].trim(),
+            lineNumber: l,
+            lineFrom: line.from
+          });
+        }
+      }
+
+      if (headings.length === 0) {
+        tocList.innerHTML = '<div class="toc-empty">Ghi chú không có tiêu đề</div>';
+        if (tocCountBadge) tocCountBadge.textContent = '0';
+        return;
+      }
+
+      if (tocCountBadge) tocCountBadge.textContent = headings.length;
+      tocList.innerHTML = '';
+
+      headings.forEach((h) => {
+        const a = document.createElement('a');
+        a.className = `toc-item toc-level-${h.level}`;
+        a.dataset.lineNumber = h.lineNumber;
+        a.textContent = h.text;
+        a.title = `Dòng ${h.lineNumber}: ${h.text}`;
+
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (cmEditorInstance) {
+            cmEditorInstance.scrollToLine(h.lineNumber);
+
+            // Highlight corresponding line in CodeMirror if mounted
+            try {
+              if (cmEditorMount) {
+                const lineEls = cmEditorMount.querySelectorAll('.cm-line');
+                if (lineEls && lineEls[h.lineNumber - 1]) {
+                  const targetLine = lineEls[h.lineNumber - 1];
+                  targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  targetLine.classList.add('heading-highlight');
+                  setTimeout(() => targetLine.classList.remove('heading-highlight'), 1200);
+                }
+              }
+            } catch (_) {}
+
+            // If in Split or Preview mode, scroll preview heading too
+            if (currentEditMode === 'split' || currentEditMode === 'preview') {
+              if (editPreviewBody) {
+                const previewHeadings = editPreviewBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                const targetPh = Array.from(previewHeadings).find(ph => ph.textContent.trim() === h.text);
+                if (targetPh) {
+                  targetPh.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  targetPh.classList.add('heading-highlight');
+                  setTimeout(() => targetPh.classList.remove('heading-highlight'), 1200);
+                }
+              }
+            }
+
+            document.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
+            a.classList.add('active');
+          }
+        });
+
+        tocList.appendChild(a);
+      });
+
+      updateActiveTocItem();
+      return;
+    }
+
+    // Normal Reading/Viewing Mode
+    if (!noteBody) return;
+    const headings = Array.from(noteBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
+    if (headings.length === 0) {
+      tocList.innerHTML = '<div class="toc-empty">Ghi chú không có tiêu đề</div>';
+      if (tocCountBadge) tocCountBadge.textContent = '0';
+      return;
+    }
+
+    if (tocCountBadge) tocCountBadge.textContent = headings.length;
+    tocList.innerHTML = '';
+
+    headings.forEach((h, index) => {
+      if (!h.id) {
+        const slug = h.textContent.trim().toLowerCase().replace(/[^\w\u00C0-\u024F\u1EA0-\u1EF9]+/g, '-');
+        h.id = `heading-${index}-${slug}`.replace(/-+$/, '');
+      }
+
+      const level = parseInt(h.tagName.substring(1), 10) || 1;
+      const a = document.createElement('a');
+      a.className = `toc-item toc-level-${level}`;
+      a.dataset.targetId = h.id;
+      a.textContent = h.textContent.trim();
+      a.title = h.textContent.trim();
+
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        h.classList.add('heading-highlight');
+        setTimeout(() => h.classList.remove('heading-highlight'), 1200);
+
+        document.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
+        a.classList.add('active');
+      });
+
+      tocList.appendChild(a);
+    });
+
+    updateActiveTocItem();
+  }
+
+  function updateActiveTocItem() {
+    if (!tocList) return;
+
+    if (isEditing) {
+      if (!editContainer || !cmEditorMount) return;
+      const lineEls = Array.from(cmEditorMount.querySelectorAll('.cm-line-h1, .cm-line-h2, .cm-line-h3, .cm-line-h4, .cm-line-h5, .cm-line-h6'));
+      if (lineEls.length === 0) return;
+
+      const containerRect = editContainer.getBoundingClientRect();
+      const containerTop = containerRect.top;
+      let currentLineEl = lineEls[0];
+
+      for (let i = 0; i < lineEls.length; i++) {
+        const top = lineEls[i].getBoundingClientRect().top;
+        if (top - containerTop <= 140) {
+          currentLineEl = lineEls[i];
+        } else {
+          break;
+        }
+      }
+
+      if (currentLineEl) {
+        const text = currentLineEl.textContent.replace(/^#{1,6}\s+/, '').trim();
+        const activeLink = Array.from(tocList.querySelectorAll('.toc-item')).find(a => a.textContent.trim() === text);
+        if (activeLink && !activeLink.classList.contains('active')) {
+          document.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
+          activeLink.classList.add('active');
+          activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+      return;
+    }
+
+    // Normal note viewing mode
+    if (!noteContainer || !noteBody) return;
+    const headings = Array.from(noteBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+    if (headings.length === 0) return;
+
+    const containerRect = noteContainer.getBoundingClientRect();
+    const containerTop = containerRect.top;
+    let currentHeading = headings[0];
+
+    for (let i = 0; i < headings.length; i++) {
+      const top = headings[i].getBoundingClientRect().top;
+      if (top - containerTop <= 100) {
+        currentHeading = headings[i];
+      } else {
+        break;
+      }
+    }
+
+    if (currentHeading && currentHeading.id) {
+      const activeLink = tocList.querySelector(`.toc-item[data-target-id="${currentHeading.id}"]`);
+      if (activeLink && !activeLink.classList.contains('active')) {
+        document.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
+        activeLink.classList.add('active');
+        activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+
+  if (btnToggleToc) {
+    btnToggleToc.addEventListener('click', () => {
+      setTocOpen(!isTocOpen);
+    });
+  }
+
+  if (noteContainer) {
+    noteContainer.addEventListener('scroll', () => {
+      clearTimeout(tocScrollDebounce);
+      tocScrollDebounce = setTimeout(updateActiveTocItem, 50);
+    });
+  }
+
+  if (editContainer) {
+    editContainer.addEventListener('scroll', () => {
+      if (isEditing) {
+        clearTimeout(tocScrollDebounce);
+        tocScrollDebounce = setTimeout(updateActiveTocItem, 50);
+      }
+    });
+  }
+
   // Word & Line Count Stats
   function updateEditStats(text) {
     if (!editStats) return;
@@ -1093,6 +1343,7 @@
       livePreview: currentEditMode !== 'source',
       onChange: (text) => {
         updateEditStats(text);
+        scheduleTocUpdate();
         if (currentEditMode === 'split' || currentEditMode === 'preview') {
           scheduleLivePreviewUpdate();
         }
@@ -1114,6 +1365,7 @@
     if (!currentNote) return;
     isEditing = true;
     if (noteContainer) noteContainer.style.display = 'none';
+    if (tocPanel) tocPanel.style.display = isTocOpen ? 'flex' : 'none';
     noteContentWrapper.style.display = 'none';
     editContainer.style.display = 'flex';
 
@@ -1129,6 +1381,7 @@
     setEditMode(currentEditMode);
     updateEditStats(currentNote.raw_content);
     updateLivePreview();
+    generateToc();
 
     setTimeout(() => {
       if (cmEditorInstance && currentEditMode !== 'preview') {
@@ -1141,7 +1394,9 @@
     isEditing = false;
     editContainer.style.display = 'none';
     if (noteContainer) noteContainer.style.display = 'block';
+    if (tocPanel) tocPanel.style.display = isTocOpen ? 'flex' : 'none';
     noteContentWrapper.style.display = 'block';
+    generateToc();
   });
 
   btnSaveEdit.addEventListener('click', async () => {
@@ -1181,6 +1436,7 @@
     isEditing = false;
     if (emptyState) emptyState.style.display = 'block';
     if (noteContentWrapper) noteContentWrapper.style.display = 'none';
+    generateToc();
     if (noteContainer) noteContainer.style.display = 'block';
     if (editContainer) editContainer.style.display = 'none';
     if (btnCopyMd) btnCopyMd.style.display = 'none';
@@ -1464,6 +1720,7 @@
   }
 
   // Initial Load
+  setTocOpen(isTocOpen);
   checkVaultsStatus(true);
   loadTree();
   loadRecent();
