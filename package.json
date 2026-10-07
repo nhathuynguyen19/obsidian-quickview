@@ -1,0 +1,20 @@
+{
+  "name": "obsidian-quickview",
+  "version": "1.0.0",
+  "description": "Blazing fast, lightweight viewer and editor for Obsidian vaults",
+  "scripts": {
+    "build:cm6": "node scripts/build-cm6.js",
+    "test:markdown": "node tests/test_render_markdown.js"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.8.0",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.4",
+    "@lezer/highlight": "^1.2.5",
+    "codemirror": "^6.0.1",
+    "esbuild": "^0.25.0",
+    "jsdom": "^30.1.2"
+  }
+}

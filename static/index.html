@@ -7,19 +7,29 @@
   <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
   <link rel="stylesheet" href="/static/github-dark.min.css">
   <link rel="stylesheet" href="/static/katex.min.css">
-  <link rel="stylesheet" href="/static/app.css?v=11">
+  <link rel="stylesheet" href="/static/app.css?v=15">
 </head>
 <body>
   <!-- Sidebar -->
   <aside id="sidebar">
     <div class="sidebar-header">
-      <div class="vault-title">
-        <svg class="vault-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-        </svg>
-        <span>Obsidian QuickView</span>
-      </div>
+      <button class="vault-switcher-btn" id="btn-vault-switcher" type="button" title="Chuyển đổi Vault (Click để chọn hoặc thêm vault)">
+        <div class="vault-info">
+          <div class="vault-icon-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </div>
+          <div class="vault-text-wrap">
+            <div class="vault-title-row">
+              <span class="vault-name" id="sidebar-vault-name">Obsidian</span>
+              <svg class="vault-dropdown-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <span class="vault-subtitle" id="sidebar-vault-path">Đang tải...</span>
+          </div>
+        </div>
+      </button>
     </div>
 
     <!-- Quick Switcher triggers -->
@@ -199,19 +209,47 @@
       </div>
     </div>
 
-    <!-- Quick Edit Panel -->
+    <!-- Quick Edit Panel with CodeMirror 6 & Live Preview -->
     <div id="edit-container" style="display: none;">
       <div class="edit-toolbar">
-        <span style="font-weight: 600; font-size: 13px; color: var(--text-normal);">Sửa nhanh (Ctrl+S: Lưu | Esc: Hủy)</span>
+        <div class="edit-toolbar-left">
+          <span class="edit-title">Sửa nhanh (Ctrl+S: Lưu | Esc: Hủy)</span>
+          <!-- Mode Switcher Tabs: Live Preview vs Source Mode vs Split vs Preview Only -->
+          <div class="edit-mode-selector">
+            <button type="button" class="btn-mode-tab active" id="btn-mode-live" title="Chế độ Live Preview (Hiệu ứng trực quan trực tiếp khi gõ)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              <span>Live Preview</span>
+            </button>
+            <button type="button" class="btn-mode-tab" id="btn-mode-source" title="Chế độ mã nguồn thuần (Raw Source Mode)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+              <span>Source</span>
+            </button>
+            <button type="button" class="btn-mode-tab" id="btn-mode-split" title="Chế độ song song (Split: Editor & Preview)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+              <span>Song song (Split)</span>
+            </button>
+            <button type="button" class="btn-mode-tab" id="btn-mode-preview" title="Xem trước kết quả (Preview Only)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <span>Xem trước</span>
+            </button>
+          </div>
+        </div>
         <div class="edit-toolbar-right">
-          <button id="btn-cancel-edit" class="btn">Hủy</button>
-          <button id="btn-save-edit" class="btn btn-primary">💾 Lưu ghi chú</button>
+          <span class="edit-stats" id="edit-stats">0 từ | 0 dòng</span>
+          <button id="btn-cancel-edit" class="btn" title="Hủy chỉnh sửa (Esc)">Hủy</button>
+          <button id="btn-save-edit" class="btn btn-primary" title="Lưu ghi chú (Ctrl+S)">💾 Lưu ghi chú</button>
         </div>
       </div>
 
-      <div class="edit-content-wrapper">
-        <div class="paper-sheet edit-paper-sheet">
-          <textarea id="edit-textarea" placeholder="Nhập nội dung markdown tại đây..." spellcheck="false"></textarea>
+      <div class="edit-content-wrapper" id="edit-content-wrapper">
+        <!-- Left: CodeMirror 6 Editor Pane -->
+        <div class="paper-sheet edit-paper-sheet" id="edit-source-pane">
+          <div id="cm-editor-mount"></div>
+        </div>
+
+        <!-- Right: Live Preview Pane -->
+        <div class="paper-sheet edit-paper-sheet" id="edit-preview-pane" style="display: none;">
+          <article id="edit-preview-body" class="markdown-body"></article>
         </div>
       </div>
     </div>
@@ -253,10 +291,68 @@
     </div>
   </div>
 
+  <!-- Vault Picker & Switcher Modal -->
+  <div id="vault-modal-backdrop" class="modal-backdrop">
+    <div class="vault-modal paper-sheet">
+      <div class="vault-modal-header">
+        <div class="vault-modal-title-group">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          <div>
+            <h2 id="vault-modal-title">Chọn Vault Obsidian</h2>
+            <p id="vault-modal-desc">Chọn vault để mở mặc định trong Obsidian QuickView</p>
+          </div>
+        </div>
+        <button id="btn-close-vault-modal" class="btn btn-icon" title="Đóng">✕</button>
+      </div>
+
+      <!-- Warning banner if vault missing -->
+      <div id="vault-missing-alert" class="vault-alert" style="display: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <div>
+          <strong>Vault hiện tại đã biến mất!</strong>
+          <p id="vault-missing-msg">Thư mục vault không còn tồn tại trên máy tính. Vui lòng chọn một vault khác bên dưới để tiếp tục.</p>
+        </div>
+      </div>
+
+      <!-- Vaults List -->
+      <div class="vault-list-container">
+        <div class="vault-section-label">Các Vault đã tìm thấy:</div>
+        <div id="vault-items-list" class="vault-items-list">
+          <!-- Dynamically populated vault cards -->
+        </div>
+      </div>
+
+      <!-- Add Custom Vault Folder Section -->
+      <div class="vault-add-section">
+        <div class="vault-section-label">Hoặc thêm thư mục Vault khác:</div>
+        <div class="vault-add-row">
+          <input type="text" id="input-custom-vault" placeholder="/home/username/path/to/vault..." spellcheck="false" autocomplete="off">
+          <button id="btn-add-custom-vault" class="btn btn-primary" type="button">Thêm Vault</button>
+        </div>
+        <div id="vault-add-error" class="vault-form-error" style="display: none;"></div>
+      </div>
+
+      <div class="vault-modal-footer">
+        <label class="vault-default-checkbox-label">
+          <input type="checkbox" id="chk-set-default-vault" checked>
+          <span>Đặt vault đã chọn làm mặc định cho các lần mở tiếp theo</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="/static/marked.min.js"></script>
   <script src="/static/highlight.min.js"></script>
   <script src="/static/katex.min.js"></script>
-  <script src="/static/app.js?v=11"></script>
+  <script src="/static/cm6-bundle.min.js?v=15"></script>
+  <script src="/static/app.js?v=15"></script>
 </body>
 </html>

@@ -70,9 +70,43 @@
   const btnSyncVault = document.getElementById('btn-sync-vault');
 
   const editContainer = document.getElementById('edit-container');
-  const editTextarea = document.getElementById('edit-textarea');
+  const editContentWrapper = document.getElementById('edit-content-wrapper');
+  const editSourcePane = document.getElementById('edit-source-pane');
+  const editPreviewPane = document.getElementById('edit-preview-pane');
+  const editPreviewBody = document.getElementById('edit-preview-body');
+  const cmEditorMount = document.getElementById('cm-editor-mount');
+  const editStats = document.getElementById('edit-stats');
+  const btnModeLive = document.getElementById('btn-mode-live');
+  const btnModeSource = document.getElementById('btn-mode-source');
+  const btnModeSplit = document.getElementById('btn-mode-split');
+  const btnModePreview = document.getElementById('btn-mode-preview');
   const btnSaveEdit = document.getElementById('btn-save-edit');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
+
+  let cmEditorInstance = null;
+  let currentEditMode = localStorage.getItem('obs_edit_mode') || 'live'; // 'live' | 'source' | 'split' | 'preview'
+  let livePreviewDebounceTimer = null;
+
+  // Vault Management Elements & State
+  const btnVaultSwitcher = document.getElementById('btn-vault-switcher');
+  const sidebarVaultName = document.getElementById('sidebar-vault-name');
+  const sidebarVaultPath = document.getElementById('sidebar-vault-path');
+  const vaultModalBackdrop = document.getElementById('vault-modal-backdrop');
+  const btnCloseVaultModal = document.getElementById('btn-close-vault-modal');
+  const vaultModalTitle = document.getElementById('vault-modal-title');
+  const vaultModalDesc = document.getElementById('vault-modal-desc');
+  const vaultMissingAlert = document.getElementById('vault-missing-alert');
+  const vaultMissingMsg = document.getElementById('vault-missing-msg');
+  const vaultItemsList = document.getElementById('vault-items-list');
+  const inputCustomVault = document.getElementById('input-custom-vault');
+  const btnAddCustomVault = document.getElementById('btn-add-custom-vault');
+  const vaultAddError = document.getElementById('vault-add-error');
+  const chkSetDefaultVault = document.getElementById('chk-set-default-vault');
+
+  let currentVaultPath = '';
+  let currentVaultName = '';
+  let knownVaults = [];
+  let isCurrentVaultMissing = false;
 
   // Configure Marked.js
   if (typeof marked !== 'undefined') {
@@ -577,6 +611,9 @@
     currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', currentTheme);
     localStorage.setItem('obs_theme', currentTheme);
+    if (cmEditorInstance) {
+      cmEditorInstance.setTheme(currentTheme);
+    }
   });
 
   // Sidebar Tab Switching
@@ -738,7 +775,11 @@
     }
     // Escape
     if (e.key === 'Escape') {
-      if (searchModalBackdrop.classList.contains('active')) {
+      if (vaultModalBackdrop && vaultModalBackdrop.classList.contains('active')) {
+        if (!isCurrentVaultMissing) {
+          closeVaultModal();
+        }
+      } else if (searchModalBackdrop.classList.contains('active')) {
         closeSearchModal();
       } else if (isEditing) {
         btnCancelEdit.click();
@@ -915,9 +956,7 @@
 
   btnOpenObsidian.addEventListener('click', () => {
     if (!currentNote) return;
-    // Obsidian protocol: obsidian://open?vault=obsidian&file=path
-    // Vault folder name is 'obsidian'
-    const vaultName = 'obsidian';
+    const vaultName = encodeURIComponent(currentVaultName || 'obsidian');
     const filePath = encodeURIComponent(currentNote.path.replace(/\.md$/, ''));
     const uri = `obsidian://open?vault=${vaultName}&file=${filePath}`;
     window.location.href = uri;
@@ -972,16 +1011,103 @@
     });
   }
 
-  // Quick Edit Mode & Auto-resizing Textarea
-  function autoResizeTextarea() {
-    if (!editTextarea) return;
-    editTextarea.style.height = 'auto';
-    const newHeight = Math.max(380, editTextarea.scrollHeight);
-    editTextarea.style.height = newHeight + 'px';
+  // Word & Line Count Stats
+  function updateEditStats(text) {
+    if (!editStats) return;
+    const lines = text.split('\n').length;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    editStats.textContent = `${words} từ | ${lines} dòng`;
   }
 
-  if (editTextarea) {
-    editTextarea.addEventListener('input', autoResizeTextarea);
+  // Update Live Preview Pane
+  function updateLivePreview() {
+    if (!editPreviewBody || !cmEditorInstance) return;
+    const text = cmEditorInstance.getValue();
+    updateEditStats(text);
+    if (currentEditMode === 'split' || currentEditMode === 'preview') {
+      const renderedHtml = renderMarkdown(text, currentNote ? currentNote.path : '');
+      editPreviewBody.innerHTML = renderedHtml;
+    }
+  }
+
+  function scheduleLivePreviewUpdate() {
+    clearTimeout(livePreviewDebounceTimer);
+    livePreviewDebounceTimer = setTimeout(updateLivePreview, 60);
+  }
+
+  // Switch Edit Mode: 'live' | 'source' | 'split' | 'preview'
+  function setEditMode(mode) {
+    currentEditMode = mode;
+    localStorage.setItem('obs_edit_mode', mode);
+
+    [btnModeLive, btnModeSource, btnModeSplit, btnModePreview].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+
+    if (editContentWrapper) {
+      editContentWrapper.classList.remove('edit-mode-live', 'edit-mode-source', 'split-mode', 'preview-mode');
+    }
+
+    if (mode === 'live') {
+      if (btnModeLive) btnModeLive.classList.add('active');
+      if (editContentWrapper) editContentWrapper.classList.add('edit-mode-live');
+      if (cmEditorInstance) cmEditorInstance.setLivePreview(true);
+      if (editSourcePane) editSourcePane.style.display = 'block';
+      if (editPreviewPane) editPreviewPane.style.display = 'none';
+      if (cmEditorInstance) cmEditorInstance.focus();
+    } else if (mode === 'source') {
+      if (btnModeSource) btnModeSource.classList.add('active');
+      if (editContentWrapper) editContentWrapper.classList.add('edit-mode-source');
+      if (cmEditorInstance) cmEditorInstance.setLivePreview(false);
+      if (editSourcePane) editSourcePane.style.display = 'block';
+      if (editPreviewPane) editPreviewPane.style.display = 'none';
+      if (cmEditorInstance) cmEditorInstance.focus();
+    } else if (mode === 'split') {
+      if (btnModeSplit) btnModeSplit.classList.add('active');
+      if (editContentWrapper) editContentWrapper.classList.add('split-mode', 'edit-mode-live');
+      if (cmEditorInstance) cmEditorInstance.setLivePreview(true);
+      if (editSourcePane) editSourcePane.style.display = 'block';
+      if (editPreviewPane) editPreviewPane.style.display = 'block';
+      updateLivePreview();
+      if (cmEditorInstance) cmEditorInstance.focus();
+    } else if (mode === 'preview') {
+      if (btnModePreview) btnModePreview.classList.add('active');
+      if (editContentWrapper) editContentWrapper.classList.add('preview-mode');
+      if (editSourcePane) editSourcePane.style.display = 'none';
+      if (editPreviewPane) editPreviewPane.style.display = 'block';
+      updateLivePreview();
+    }
+  }
+
+  if (btnModeLive) btnModeLive.addEventListener('click', () => setEditMode('live'));
+  if (btnModeSource) btnModeSource.addEventListener('click', () => setEditMode('source'));
+  if (btnModeSplit) btnModeSplit.addEventListener('click', () => setEditMode('split'));
+  if (btnModePreview) btnModePreview.addEventListener('click', () => setEditMode('preview'));
+
+  // Initialize CodeMirror 6 Editor
+  function initCodeMirror() {
+    if (cmEditorInstance || !window.ObsidianCM6 || !cmEditorMount) return;
+    cmEditorInstance = window.ObsidianCM6.createEditor(cmEditorMount, {
+      doc: currentNote ? currentNote.raw_content : '',
+      theme: currentTheme,
+      livePreview: currentEditMode !== 'source',
+      onChange: (text) => {
+        updateEditStats(text);
+        if (currentEditMode === 'split' || currentEditMode === 'preview') {
+          scheduleLivePreviewUpdate();
+        }
+      },
+      onSave: () => {
+        if (btnSaveEdit) btnSaveEdit.click();
+      },
+      onCancel: () => {
+        if (btnCancelEdit) btnCancelEdit.click();
+      }
+    });
+
+    if (cmEditorInstance) {
+      cmEditorInstance.setLivePreview(currentEditMode !== 'source');
+    }
   }
 
   btnQuickEdit.addEventListener('click', () => {
@@ -990,11 +1116,25 @@
     if (noteContainer) noteContainer.style.display = 'none';
     noteContentWrapper.style.display = 'none';
     editContainer.style.display = 'flex';
-    editTextarea.value = currentNote.raw_content;
+
+    if (!cmEditorInstance) {
+      initCodeMirror();
+    }
+
+    if (cmEditorInstance) {
+      cmEditorInstance.setValue(currentNote.raw_content);
+      cmEditorInstance.setTheme(currentTheme);
+    }
+
+    setEditMode(currentEditMode);
+    updateEditStats(currentNote.raw_content);
+    updateLivePreview();
+
     setTimeout(() => {
-      autoResizeTextarea();
-      editTextarea.focus();
-    }, 10);
+      if (cmEditorInstance && currentEditMode !== 'preview') {
+        cmEditorInstance.focus();
+      }
+    }, 20);
   });
 
   btnCancelEdit.addEventListener('click', () => {
@@ -1005,8 +1145,8 @@
   });
 
   btnSaveEdit.addEventListener('click', async () => {
-    if (!currentNote) return;
-    const newContent = editTextarea.value;
+    if (!currentNote || !cmEditorInstance) return;
+    const newContent = cmEditorInstance.getValue();
     btnSaveEdit.textContent = 'Đang lưu...';
 
     try {
@@ -1035,7 +1175,296 @@
     }
   });
 
+  // Reset Note View Helper
+  function resetNoteView() {
+    currentNote = null;
+    isEditing = false;
+    if (emptyState) emptyState.style.display = 'block';
+    if (noteContentWrapper) noteContentWrapper.style.display = 'none';
+    if (noteContainer) noteContainer.style.display = 'block';
+    if (editContainer) editContainer.style.display = 'none';
+    if (btnCopyMd) btnCopyMd.style.display = 'none';
+    if (btnQuickEdit) btnQuickEdit.style.display = 'none';
+    if (btnOpenObsidian) btnOpenObsidian.style.display = 'none';
+    if (contextDropdownWrapper) contextDropdownWrapper.style.display = 'none';
+    if (noteBreadcrumb) noteBreadcrumb.innerHTML = '<span>Chọn một ghi chú để bắt đầu xem</span>';
+    noteHistory.length = 0;
+    historyIndex = -1;
+    updateHistoryButtons();
+  }
+
+  // Vault Management Logic
+  function formatDisplayPath(path) {
+    if (!path) return '';
+    return path.replace(/^\/home\/[^\/]+/, '~');
+  }
+
+  function renderVaultCards() {
+    if (!vaultItemsList) return;
+    vaultItemsList.innerHTML = '';
+
+    if (!knownVaults || knownVaults.length === 0) {
+      vaultItemsList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">Chưa tìm thấy vault nào. Vui lòng thêm đường dẫn bên dưới.</div>';
+      return;
+    }
+
+    knownVaults.forEach(vault => {
+      const card = document.createElement('div');
+      card.className = 'vault-card';
+      if (vault.is_current && vault.exists) card.classList.add('active');
+      if (!vault.exists) card.classList.add('missing');
+
+      // Left
+      const left = document.createElement('div');
+      left.className = 'vault-card-left';
+
+      const icon = document.createElement('div');
+      icon.className = 'vault-card-icon';
+      icon.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+      </svg>`;
+
+      const info = document.createElement('div');
+      info.className = 'vault-card-info';
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'vault-card-name-row';
+
+      const name = document.createElement('span');
+      name.className = 'vault-card-name';
+      name.textContent = vault.name;
+      nameRow.appendChild(name);
+
+      const pathSpan = document.createElement('span');
+      pathSpan.className = 'vault-card-path';
+      pathSpan.textContent = formatDisplayPath(vault.path);
+      pathSpan.title = vault.path;
+
+      info.appendChild(nameRow);
+      info.appendChild(pathSpan);
+      left.appendChild(icon);
+      left.appendChild(info);
+
+      // Badges
+      const badges = document.createElement('div');
+      badges.className = 'vault-card-badges';
+
+      if (!vault.exists) {
+        const badgeMissing = document.createElement('span');
+        badgeMissing.className = 'vault-badge badge-missing';
+        badgeMissing.textContent = 'Đã biến mất';
+        badges.appendChild(badgeMissing);
+      } else {
+        if (vault.is_current) {
+          const badgeCur = document.createElement('span');
+          badgeCur.className = 'vault-badge badge-current';
+          badgeCur.textContent = 'Đang mở';
+          badges.appendChild(badgeCur);
+        }
+        if (vault.is_default) {
+          const badgeDef = document.createElement('span');
+          badgeDef.className = 'vault-badge badge-default';
+          badgeDef.textContent = 'Mặc định';
+          badges.appendChild(badgeDef);
+        }
+      }
+
+      const badgeSource = document.createElement('span');
+      badgeSource.className = 'vault-badge badge-source';
+      badgeSource.textContent = vault.source === 'obsidian' ? 'Obsidian' : 'Tùy chọn';
+      badges.appendChild(badgeSource);
+
+      card.appendChild(left);
+      card.appendChild(badges);
+
+      card.addEventListener('click', () => {
+        if (!vault.exists) {
+          alert(`⚠️ Thư mục vault không tồn tại trên hệ thống:\n${vault.path}\n\nThư mục này có thể đã bị xóa hoặc di chuyển.`);
+          return;
+        }
+        if (vault.is_current && !isCurrentVaultMissing) {
+          closeVaultModal();
+          return;
+        }
+        switchVault(vault.path, chkSetDefaultVault ? chkSetDefaultVault.checked : true);
+      });
+
+      vaultItemsList.appendChild(card);
+    });
+  }
+
+  function openVaultModal(isMandatory = false, customTitle = null, customDesc = null) {
+    if (!vaultModalBackdrop) return;
+    renderVaultCards();
+
+    if (customTitle && vaultModalTitle) vaultModalTitle.textContent = customTitle;
+    if (customDesc && vaultModalDesc) vaultModalDesc.textContent = customDesc;
+
+    if (isMandatory) {
+      if (btnCloseVaultModal) btnCloseVaultModal.style.display = 'none';
+    } else {
+      if (btnCloseVaultModal) btnCloseVaultModal.style.display = 'inline-flex';
+    }
+
+    if (vaultAddError) vaultAddError.style.display = 'none';
+    if (inputCustomVault) inputCustomVault.value = '';
+
+    vaultModalBackdrop.classList.add('active');
+  }
+
+  function closeVaultModal() {
+    if (isCurrentVaultMissing) return;
+    if (vaultModalBackdrop) {
+      vaultModalBackdrop.classList.remove('active');
+    }
+  }
+
+  async function checkVaultsStatus(initialCheck = false) {
+    try {
+      const res = await fetch('/api/vaults');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      currentVaultPath = data.current_vault || '';
+      currentVaultName = data.current_vault_name || 'Obsidian';
+      knownVaults = data.vaults || [];
+      isCurrentVaultMissing = !data.current_vault_exists;
+
+      if (sidebarVaultName) sidebarVaultName.textContent = currentVaultName;
+      if (sidebarVaultPath) {
+        sidebarVaultPath.textContent = isCurrentVaultMissing ? '⚠️ Không tìm thấy vault' : formatDisplayPath(currentVaultPath);
+        sidebarVaultPath.title = currentVaultPath;
+        if (isCurrentVaultMissing) {
+          sidebarVaultPath.style.color = '#ef4444';
+        } else {
+          sidebarVaultPath.style.color = '';
+        }
+      }
+
+      if (isCurrentVaultMissing) {
+        if (vaultMissingAlert) vaultMissingAlert.style.display = 'flex';
+        if (vaultMissingMsg) {
+          vaultMissingMsg.textContent = `Thư mục vault không còn tồn tại tại: "${currentVaultPath}". Thư mục có thể đã bị xóa hoặc đổi tên. Vui lòng chọn hoặc thêm một vault khác để tiếp tục sử dụng.`;
+        }
+        openVaultModal(true, '⚠️ Vault đã biến mất!', 'Vui lòng chọn hoặc thêm một vault còn tồn tại trên máy tính.');
+      } else if (data.is_first_run && initialCheck) {
+        if (vaultMissingAlert) vaultMissingAlert.style.display = 'none';
+        openVaultModal(false, 'Chọn Vault Obsidian để bắt đầu', 'Chọn vault bạn muốn mở mặc định trong Obsidian QuickView.');
+      } else {
+        if (vaultMissingAlert) vaultMissingAlert.style.display = 'none';
+      }
+    } catch (e) {
+      console.error('Error checking vaults status:', e);
+    }
+  }
+
+  async function switchVault(targetPath, setDefault = true) {
+    try {
+      const res = await fetch('/api/vaults/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: targetPath,
+          set_default: setDefault
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        alert('❌ Không thể chuyển vault: ' + (data.error || data.message || 'Lỗi không xác định'));
+        return;
+      }
+
+      isCurrentVaultMissing = false;
+      closeVaultModal();
+
+      // Reset Note View & History
+      resetNoteView();
+
+      // Refresh sidebar data
+      await Promise.all([
+        loadTree(),
+        loadRecent(),
+        loadTags(),
+        checkVaultsStatus(false)
+      ]);
+
+    } catch (e) {
+      alert('❌ Lỗi kết nối khi chuyển vault: ' + e.message);
+    }
+  }
+
+  async function addCustomVault() {
+    if (!inputCustomVault) return;
+    const path = inputCustomVault.value.trim();
+    if (!path) {
+      if (vaultAddError) {
+        vaultAddError.textContent = 'Vui lòng nhập đường dẫn thư mục vault!';
+        vaultAddError.style.display = 'block';
+      }
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/vaults/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: path })
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'ok') {
+        if (vaultAddError) {
+          vaultAddError.textContent = data.error || data.message || 'Thư mục không tồn tại!';
+          vaultAddError.style.display = 'block';
+        }
+        return;
+      }
+
+      // Switch to this newly added vault immediately
+      await switchVault(path, chkSetDefaultVault ? chkSetDefaultVault.checked : true);
+    } catch (e) {
+      if (vaultAddError) {
+        vaultAddError.textContent = 'Lỗi kết nối: ' + e.message;
+        vaultAddError.style.display = 'block';
+      }
+    }
+  }
+
+  // Vault Switcher Event Listeners
+  if (btnVaultSwitcher) {
+    btnVaultSwitcher.addEventListener('click', () => {
+      openVaultModal(isCurrentVaultMissing, 'Chuyển đổi Vault Obsidian', 'Chọn vault bạn muốn sử dụng hoặc thêm thư mục mới.');
+    });
+  }
+
+  if (btnCloseVaultModal) {
+    btnCloseVaultModal.addEventListener('click', closeVaultModal);
+  }
+
+  if (vaultModalBackdrop) {
+    vaultModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === vaultModalBackdrop && !isCurrentVaultMissing) {
+        closeVaultModal();
+      }
+    });
+  }
+
+  if (btnAddCustomVault) {
+    btnAddCustomVault.addEventListener('click', addCustomVault);
+  }
+
+  if (inputCustomVault) {
+    inputCustomVault.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addCustomVault();
+      }
+    });
+  }
+
   // Initial Load
+  checkVaultsStatus(true);
   loadTree();
   loadRecent();
   loadTags();
