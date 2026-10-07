@@ -333,12 +333,25 @@
 
     const data = await fetchJson(`/api/note?path=${encodeURIComponent(path)}`);
     if (!data) {
-      alert('Không thể tải ghi chú: ' + path);
+      alert((window.I18n ? window.I18n.t('app.error') : 'Lỗi') + ': ' + path);
+      const missingIndex = recentNotes.findIndex(r => r.path === path);
+      if (missingIndex !== -1) {
+        recentNotes.splice(missingIndex, 1);
+        saveRecentNotes();
+        renderRecentNotes();
+      }
       return;
     }
 
     currentNote = data;
     isEditing = false;
+
+    // Track Recent Notes (always add new or move existing to top)
+    addRecentNote({
+      path: data.path,
+      title: data.title,
+      folder: data.folder
+    });
 
     // Track Navigation History
     if (pushHistory) {
@@ -513,20 +526,123 @@
     treeContainer.innerHTML = renderNode(tree);
   }
 
-  // Load Recent Notes
-  async function loadRecent() {
-    const data = await fetchJson('/api/search?limit=30');
-    if (!data || !data.results) return;
+  // ==========================================================================
+  // Recent Notes Management (LRU - Recently Viewed)
+  // ==========================================================================
+  let recentNotes = [];
 
-    recentContainer.innerHTML = data.results.map(r => `
-      <div class="recent-item" data-path="${r.path}">
+  function getRecentStorageKey() {
+    const vKey = currentVaultPath ? encodeURIComponent(currentVaultPath) : 'default';
+    return `obs_recent_${vKey}`;
+  }
+
+  function saveRecentNotes() {
+    try {
+      localStorage.setItem(getRecentStorageKey(), JSON.stringify(recentNotes));
+    } catch (e) {
+      console.warn('Failed to save recent notes to localStorage:', e);
+    }
+  }
+
+  function loadRecentNotesFromStorage() {
+    try {
+      const stored = localStorage.getItem(getRecentStorageKey());
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse recent notes from localStorage:', e);
+    }
+    return null;
+  }
+
+  function addRecentNote(note) {
+    if (!note || !note.path) return;
+
+    const path = note.path;
+    const title = note.title || path.split('/').pop().replace(/\.md$/, '');
+    const folder = (note.folder !== undefined && note.folder !== null)
+      ? note.folder
+      : (path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '');
+
+    // Check if already in recentNotes
+    const existingIndex = recentNotes.findIndex(r => r.path === path);
+    if (existingIndex !== -1) {
+      // Remove from existing position so we can move it to top
+      recentNotes.splice(existingIndex, 1);
+    }
+
+    // Always add to the very top (index 0)
+    recentNotes.unshift({
+      path,
+      title,
+      folder
+    });
+
+    // Cap at 50 recent items
+    if (recentNotes.length > 50) {
+      recentNotes = recentNotes.slice(0, 50);
+    }
+
+    // Persist to localStorage
+    saveRecentNotes();
+
+    // Re-render recent container
+    renderRecentNotes();
+  }
+
+  function renderRecentNotes() {
+    if (!recentContainer) return;
+
+    if (!recentNotes || recentNotes.length === 0) {
+      const emptyText = window.I18n ? window.I18n.t('sidebar.emptyRecent') : 'Chưa có ghi chú nào';
+      recentContainer.innerHTML = `<div class="sidebar-empty" style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">${emptyText}</div>`;
+      return;
+    }
+
+    const curPath = currentNote ? currentNote.path : null;
+
+    recentContainer.innerHTML = recentNotes.map(r => `
+      <div class="recent-item ${curPath === r.path ? 'active' : ''}" data-path="${r.path}">
         ${SVG_NOTE}
         <div style="overflow: hidden; text-overflow: ellipsis;">
           <div>${r.title}</div>
-          <div style="font-size: 11px; opacity: 0.6;">${r.folder}</div>
+          <div style="font-size: 11px; opacity: 0.6;">${r.folder || ''}</div>
         </div>
       </div>
     `).join('');
+  }
+
+  // Load Recent Notes (from localStorage or seed initial from server)
+  async function loadRecent() {
+    const stored = loadRecentNotesFromStorage();
+    if (stored !== null) {
+      recentNotes = stored;
+      renderRecentNotes();
+      return;
+    }
+
+    // If first time for this vault, seed from server
+    try {
+      const data = await fetchJson('/api/search?limit=25');
+      if (data && data.results && data.results.length > 0) {
+        recentNotes = data.results.map(r => ({
+          path: r.path,
+          title: r.title,
+          folder: r.folder || ''
+        }));
+        saveRecentNotes();
+      } else {
+        recentNotes = [];
+      }
+    } catch (_) {
+      recentNotes = [];
+    }
+
+    renderRecentNotes();
   }
 
   // Load Tags
@@ -1734,11 +1850,11 @@
       resetNoteView();
 
       // Refresh sidebar data
+      await checkVaultsStatus(false);
       await Promise.all([
         loadTree(),
         loadRecent(),
-        loadTags(),
-        checkVaultsStatus(false)
+        loadTags()
       ]);
 
     } catch (e) {
@@ -1877,6 +1993,7 @@
     updateContextBtnText();
     renderVaultCards();
     generateToc();
+    renderRecentNotes();
     if (!currentNote && noteBreadcrumb) {
       noteBreadcrumb.innerHTML = `<span>${window.I18n ? window.I18n.t('nav.selectNotePrompt') : 'Chọn một ghi chú để bắt đầu xem'}</span>`;
     } else if (currentNote) {
@@ -1904,9 +2021,10 @@
   }
 
   setTocOpen(isTocOpen);
-  checkVaultsStatus(true);
+  checkVaultsStatus(true).finally(() => {
+    loadRecent();
+  });
   loadTree();
-  loadRecent();
   loadTags();
 
   // If URL has ?path=..., open it
