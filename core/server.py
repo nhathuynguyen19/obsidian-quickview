@@ -60,8 +60,13 @@ class ObsidianViewHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
-            self.send_header("Content-Disposition", "inline")
-            self.send_header("Cache-Control", "public, max-age=3600")
+            # Disable cache for JS/CSS/HTML to avoid stale code; allow cache for fonts/images
+            if file_path.endswith(('.js', '.css', '.html')):
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
+            else:
+                self.send_header("Cache-Control", "public, max-age=3600")
             self.end_headers()
             self.wfile.write(content)
         except Exception as e:

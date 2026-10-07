@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
   <link rel="stylesheet" href="/static/github-dark.min.css">
   <link rel="stylesheet" href="/static/katex.min.css">
-  <link rel="stylesheet" href="/static/app.css?v=17">
+  <link rel="stylesheet" href="/static/app.css?v=20">
 </head>
 <body>
   <!-- Sidebar -->
@@ -262,26 +262,47 @@
           </div>
         </div>
       </div>
-
-      <!-- Right Table of Contents (Outline) Panel -->
-      <aside id="toc-panel" class="toc-panel" aria-label="Mục lục ghi chú">
-        <div class="toc-header">
-          <div class="toc-title">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="21" y1="6" x2="3" y2="6"></line>
-              <line x1="15" y1="12" x2="3" y2="12"></line>
-              <line x1="17" y1="18" x2="3" y2="18"></line>
-            </svg>
-            <span>Mục lục</span>
-          </div>
-          <span id="toc-count-badge" class="toc-count-badge" title="Số lượng tiêu đề">0</span>
-        </div>
-        <div id="toc-list" class="toc-list">
-          <div class="toc-empty">Chưa chọn ghi chú nào</div>
-        </div>
-      </aside>
     </div>
   </main>
+
+  <!-- Right Sidebar (Outline / TOC) -->
+  <aside id="sidebar-right" class="sidebar-right" aria-label="Sidebar phải">
+    <div class="sidebar-header sidebar-right-header">
+      <div class="sidebar-right-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="21" y1="6" x2="3" y2="6"></line>
+          <line x1="15" y1="12" x2="3" y2="12"></line>
+          <line x1="17" y1="18" x2="3" y2="18"></line>
+        </svg>
+        <span>Mục lục</span>
+        <span id="toc-count-badge" class="toc-count-badge" title="Số lượng tiêu đề">0</span>
+      </div>
+      <button id="btn-close-right-sidebar" class="btn btn-icon" title="Đóng sidebar phải (Ctrl + Shift + O)" aria-label="Close Right Sidebar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" data-tab="toc">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="21" y1="6" x2="3" y2="6"></line>
+          <line x1="15" y1="12" x2="3" y2="12"></line>
+          <line x1="17" y1="18" x2="3" y2="18"></line>
+        </svg>
+        <span>Outline</span>
+      </div>
+    </div>
+
+    <!-- Tab panes -->
+    <div id="pane-toc" class="tab-pane active">
+      <div id="toc-list" class="toc-list">
+        <div class="toc-empty">Chưa chọn ghi chú nào</div>
+      </div>
+    </div>
+  </aside>
 
   <!-- Quick Switcher Modal (Ctrl + K / Ctrl + Shift + F) -->
   <div id="search-modal-backdrop" class="modal-backdrop">
@@ -380,7 +401,7 @@
   <script src="/static/marked.min.js"></script>
   <script src="/static/highlight.min.js"></script>
   <script src="/static/katex.min.js"></script>
-  <script src="/static/cm6-bundle.min.js?v=17"></script>
-  <script src="/static/app.js?v=17"></script>
+  <script src="/static/cm6-bundle.min.js?v=20"></script>
+  <script src="/static/app.js?v=20"></script>
 </body>
 </html>

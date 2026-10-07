@@ -69,7 +69,8 @@
   const btnOpenObsidian = document.getElementById('btn-open-obsidian');
   const btnSyncVault = document.getElementById('btn-sync-vault');
   const btnToggleToc = document.getElementById('btn-toggle-toc');
-  const tocPanel = document.getElementById('toc-panel');
+  const btnCloseRightSidebar = document.getElementById('btn-close-right-sidebar');
+  const tocPanel = document.getElementById('sidebar-right') || document.getElementById('toc-panel');
   const tocList = document.getElementById('toc-list');
   const tocCountBadge = document.getElementById('toc-count-badge');
   let isTocOpen = localStorage.getItem('obs_toc_open') !== 'false';
@@ -783,11 +784,12 @@
       btnOpenObsidian.click();
     }
     // Ctrl+S -> Save in edit mode
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      if (isEditing) {
-        e.preventDefault();
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      if (isEditing && btnSaveEdit) {
         btnSaveEdit.click();
       }
+      return;
     }
     // Escape
     if (e.key === 'Escape') {
@@ -1245,6 +1247,12 @@
     });
   }
 
+  if (btnCloseRightSidebar) {
+    btnCloseRightSidebar.addEventListener('click', () => {
+      setTocOpen(false);
+    });
+  }
+
   if (noteContainer) {
     noteContainer.addEventListener('scroll', () => {
       clearTimeout(tocScrollDebounce);
@@ -1399,8 +1407,11 @@
     generateToc();
   });
 
+  let isSaving = false;
   btnSaveEdit.addEventListener('click', async () => {
-    if (!currentNote || !cmEditorInstance) return;
+    if (isSaving || !currentNote || !cmEditorInstance) return;
+    isSaving = true;
+    const savePath = currentNote.path;
     const newContent = cmEditorInstance.getValue();
     btnSaveEdit.textContent = 'Đang lưu...';
 
@@ -1409,17 +1420,52 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          path: currentNote.path,
+          path: savePath,
           content: newContent
         })
       });
       const data = await res.json();
       if (res.ok && data.status === 'saved') {
         btnSaveEdit.textContent = '✅ Đã lưu';
+        // Cập nhật raw_content cục bộ ngay lập tức
+        currentNote.raw_content = newContent;
+
+        // Fetch lại note từ server để cập nhật parsed content, frontmatter, backlinks
+        // nhưng KHÔNG thoát editor - chỉ cập nhật dữ liệu ngầm
+        try {
+          const updated = await fetchJson(`/api/note?path=${encodeURIComponent(savePath)}`);
+          if (updated && currentNote && currentNote.path === savePath) {
+            // Chỉ cập nhật dữ liệu, giữ nguyên trạng thái editing
+            currentNote.content = updated.content;
+            currentNote.frontmatter = updated.frontmatter;
+            currentNote.tags = updated.tags;
+            currentNote.backlinks = updated.backlinks;
+            currentNote.mtime = updated.mtime;
+            currentNote.raw_content = updated.raw_content;
+
+            // Cập nhật HTML preview ngầm (cho khi user thoát edit sẽ thấy nội dung mới)
+            if (noteBody) noteBody.innerHTML = renderMarkdown(updated.content, updated.path);
+            // Cập nhật live preview nếu đang ở split/preview mode
+            updateLivePreview();
+            generateToc();
+          }
+        } catch (_ignore) {}
+
+        // Đảm bảo editor vẫn hiển thị đúng sau save
+        isEditing = true;
+        if (noteContainer) noteContainer.style.display = 'none';
+        if (noteContentWrapper) noteContentWrapper.style.display = 'none';
+        if (editContainer) editContainer.style.display = 'flex';
+        if (tocPanel) tocPanel.style.display = isTocOpen ? 'flex' : 'none';
+
+        // Phục hồi focus cho CodeMirror để tiếp tục gõ bình thường
+        if (cmEditorInstance && currentEditMode !== 'preview') {
+          cmEditorInstance.focus();
+        }
+
         setTimeout(() => {
           btnSaveEdit.textContent = '💾 Lưu ghi chú';
-          loadNote(currentNote.path);
-        }, 600);
+        }, 800);
       } else {
         alert('Lỗi lưu ghi chú: ' + (data.error || 'Unknown error'));
         btnSaveEdit.textContent = '💾 Lưu ghi chú';
@@ -1427,6 +1473,8 @@
     } catch (e) {
       alert('Lỗi kết nối khi lưu: ' + e.message);
       btnSaveEdit.textContent = '💾 Lưu ghi chú';
+    } finally {
+      isSaving = false;
     }
   });
 
