@@ -10,6 +10,7 @@ This document defines the operating rules, architectural boundaries, and verific
 2. **Zero External Runtime Dependencies**: No npm runtime dependencies, no build bundlers (Webpack/Vite) at runtime.
 3. **Strict Modularity & Low Context Footprint**: Every module is bounded (< 450 lines of code) with single responsibility.
 4. **Backward Compatibility**: `bin/obs-view`, root `server.py`, root `indexer.py`, and existing HTTP JSON APIs must never break.
+5. **No Automatic Git Commit/Push**: Tuyệt đối **KHÔNG tự động `git commit` hoặc `git push`**. Chỉ thực hiện commit và push khi người dùng yêu cầu rõ ràng.
 
 ---
 

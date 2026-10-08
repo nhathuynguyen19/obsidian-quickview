@@ -24,6 +24,8 @@ Tài liệu này cung cấp bản đồ kiến trúc toàn diện của **Obsidi
 obsidian-quickview/
 ├── bin/
 │   └── obs-view               # Bash CLI entry point: start/stop/status daemon, open browser
+├── install.sh                 # Cài đặt, tự động build lại toàn bộ assets & restart server
+├── uninstall.sh               # Gỡ bỏ toàn bộ dịch vụ, phím tắt Desktop và dọn dẹp cache
 ├── server.py                  # CLI Python launcher (accepts port & vault args) → core/server.py
 ├── indexer.py                 # Backward-compatibility export adapter → core/
 ├── core/                      # Backend Service & HTTP Layer (Python 3.12)
@@ -50,7 +52,8 @@ obsidian-quickview/
 │   │   ├── editor.css         # CodeMirror 6 live preview, source mode, split view, stats
 │   │   ├── live-preview.css   # Live preview decoration engine styles, callouts, tables, checkboxes
 │   │   ├── search.css         # Search modal, tabs, input box, result list, keyword mark
-│   │   └── modals.css         # Vault picker modal, settings modal, hotkeys table, snippet dialog
+│   │   ├── modals.css         # Vault picker modal, settings modal, hotkeys table, snippet dialog
+│   │   └── core-settings.css  # Switch slider & layout cho toggle tính năng cốt lõi
 │   ├── js/                    # Native ES Modules
 │   │   ├── events.js          # EventEmitter & global eventBus (PubSub)
 │   │   ├── state.js           # AppState: reactive central state & navigation history
@@ -65,13 +68,15 @@ obsidian-quickview/
 │   │   ├── note.js            # NoteViewerController: Note loading, frontmatter, backlinks, copy actions
 │   │   ├── vault.js           # VaultModalController: Vault cards, switcher, custom path adding
 │   │   ├── settings.js        # SettingsModalController: Theme toggle, language switcher, hotkeys UI
+│   │   ├── core_settings.js   # CoreSettingsController: Bật tắt Folders, Recent, Tags, Outline
 │   │   └── app.js             # Main bootstrap orchestrator
 │   ├── i18n.js                # I18n runtime engine (loads JSON locales)
 │   ├── locales/               # vi.json, en.json
-│   ├── cm6-bundle.min.js      # CodeMirror 6 prebundled core & extensions
-│   ├── marked.min.js          # Markdown parser library
-│   ├── highlight.min.js       # Code syntax highlighting
-│   └── katex.min.js           # LaTeX math formula rendering engine (lazy-loaded)
+│   └── (build artifacts)     # cm6-bundle, marked, highlight, katex sinh tự động bởi scripts/build.js
+├── scripts/
+│   ├── build.js               # Đóng gói CM6, Highlight.js, Marked, KaTeX từ devDependencies
+│   ├── build-cm6.js           # Build CodeMirror 6 bundle riêng biệt
+│   └── check_architecture.py  # Bộ linter kiểm tra tính tuân thủ kiến trúc và độ dài tệp
 └── tests/
     ├── test_indexer.py        # Python unit tests for indexing, parser, backlinks
     ├── test_vault_manager.py  # Python unit tests for vault config & switching
@@ -96,6 +101,7 @@ flowchart TD
         AppBoot --> TocCtrl["toc.js (Mục lục TOC & ScrollSpy)"]
         AppBoot --> VaultCtrl["vault.js (Chuyển Vault)"]
         AppBoot --> SettingsCtrl["settings.js (Cài đặt & Hotkeys)"]
+        AppBoot --> CoreSettingsCtrl["core_settings.js (Tính năng cốt lõi)"]
         
         NoteCtrl --> MarkdownEngine["markdown.js (Render Markdown & KaTeX)"]
         EditorCtrl --> MarkdownEngine
@@ -148,6 +154,7 @@ flowchart TD
 | **`SidebarController`** (`sidebar.js`) | Cây thư mục, ghi chú gần đây, tags | `loadAll()`, `loadTree()`, `loadRecent()`, `loadTags()`, `addRecentNote(note)`, `toggle()` |
 | **`VaultModalController`** (`vault.js`) | Hộp thoại chọn và chuyển đổi vault | `open(isMandatory, title, desc)`, `close()`, `checkStatus()`, `switchVault(path)`, `addCustomVault()` |
 | **`SettingsModalController`** (`settings.js`) | Cài đặt theme, i18n, phím tắt & snippets | `open()`, `close()`, `setSubtab(tab)`, `renderHotkeys()`, `renderSnippets()`, `startRecording(type, id)` |
+| **`CoreSettingsController`** (`core_settings.js`) | Bật/tắt các tính năng cốt lõi (Folders, Recent, Tags, Outline) | `init()`, `syncUI()` |
 | **`HotkeysManager`** (`hotkeys.js`) | Chuẩn hóa phím tắt, phát hiện xung đột | `normalizeKeyComboFromEvent(e)`, `findHotkeyConflict(combo, type, id)`, `registerActionHandler(id, fn)` |
 
 ### 4.2. Backend Modules (`core/`)
@@ -179,7 +186,7 @@ flowchart TD
 | **5. Cây thư mục (Tree), Ghi chú gần đây, Tags** | `static/js/sidebar.js`<br>`static/css/sidebar.css` | `#sidebar`<br>`#pane-tree`<br>`#pane-recent`<br>`#pane-tags`<br>`.file-item`<br>`.recent-item` | `core/index.py` (hàm `get_tree`, `get_tags`) | `static/js/editor.js`<br>`static/js/markdown.js`<br>`core/git_sync.py` |
 | **6. Giao diện xem ghi chú (Breadcrumbs, Frontmatter, Backlinks)** | `static/js/note.js`<br>`static/css/note.css` | `#note-container`<br>`#note-breadcrumb`<br>`#note-frontmatter`<br>`#note-backlinks`<br>`.btn-copy-link` | `core/routes.py` (hàm `handle_api_note`)<br>`core/index.py` | `static/js/settings.js`<br>`static/js/vault.js`<br>`core/git_sync.py` |
 | **7. Quản lý & Chuyển đổi Vault (Vault Switcher)** | `static/js/vault.js`<br>`static/css/modals.css` (khối vault) | `#vault-modal-backdrop`<br>`#vault-items-list`<br>`#btn-vault-switcher`<br>`.vault-card` | `core/vault_manager.py`<br>`core/routes.py` (hàm `handle_api_vaults`) | `static/js/markdown.js`<br>`static/js/editor.js`<br>`core/context.py`<br>`core/git_sync.py` |
-| **8. Cài đặt Giao diện, Ngôn ngữ, Hotkeys & Snippets** | `static/js/settings.js`<br>`static/js/hotkeys.js`<br>`static/css/modals.css` (khối settings) | `#settings-modal-backdrop`<br>`.settings-lang-card`<br>`#hotkeys-buttons-list`<br>`#snippet-dialog-backdrop` | *Lưu trữ trên localStorage* | `core/*`<br>`static/js/markdown.js`<br>`static/js/editor.js` |
+| **8. Cài đặt Giao diện, Ngôn ngữ, Hotkeys, Snippets & Core Settings** | `static/js/settings.js`<br>`static/js/core_settings.js`<br>`static/js/hotkeys.js`<br>`static/css/modals.css` (khối settings)<br>`static/css/core-settings.css` | `#settings-modal-backdrop`<br>`.settings-lang-card`<br>`#hotkeys-buttons-list`<br>`#snippet-dialog-backdrop`<br>`#settings-pane-core`<br>`#toggle-core-*` | *Lưu trữ trên localStorage* | `core/*`<br>`static/js/markdown.js`<br>`static/js/editor.js` |
 | **9. Tổng hợp Knowledge Context cho LLM** | `static/js/note.js` (nút Copy Context)<br>`core/context.py` | `#btn-copy-context`<br>`#context-dropdown-menu` | `core/context.py`<br>`core/routes.py` (hàm `handle_api_context`) | `static/js/editor.js`<br>`static/js/vault.js`<br>`core/git_sync.py` |
 | **10. Đồng bộ Git Vault (Git Sync)** | `static/js/note.js` (nút Sync Vault)<br>`core/git_sync.py` | `#btn-sync-vault` | `core/git_sync.py`<br>`core/routes.py` (hàm `handle_api_git_sync`) | `static/js/markdown.js`<br>`static/js/toc.js`<br>`core/search.py`<br>`core/context.py` |
 

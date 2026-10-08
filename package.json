@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Blazing fast, lightweight viewer and editor for Obsidian vaults",
   "scripts": {
-    "build:cm6": "node scripts/build-cm6.js",
+    "build": "node scripts/build.js",
+    "build:cm6": "node scripts/build.js",
     "test:markdown": "node tests/test_render_markdown.js",
     "test:editor": "node tests/test_editor_architecture.js",
     "test:live-editor": "node tests/test_live_editor.js",
@@ -19,6 +20,9 @@
     "@lezer/highlight": "^1.2.5",
     "codemirror": "^6.0.1",
     "esbuild": "^0.25.0",
-    "jsdom": "^30.1.2"
+    "highlight.js": "^11.12.0",
+    "jsdom": "^30.1.2",
+    "katex": "^0.16.47",
+    "marked": "^12.0.2"
   }
 }

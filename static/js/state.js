@@ -18,6 +18,9 @@ class StateStore {
     this.knownVaults = [];
     this.isCurrentVaultMissing = false;
 
+    // Core features settings (Folders, Recent, Tags, Outline)
+    this.coreSettings = this.loadCoreSettings();
+
     // Navigation history
     this.noteHistory = [];
     this.historyIndex = -1;
@@ -51,6 +54,35 @@ class StateStore {
     this.isTocOpen = open;
     localStorage.setItem('obs_toc_open', String(open));
     eventBus.emit('toc:toggled', open);
+  }
+
+  loadCoreSettings() {
+    try {
+      const saved = localStorage.getItem('obs_core_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          folders: parsed.folders !== false,
+          recent: parsed.recent !== false,
+          tags: parsed.tags !== false,
+          outline: parsed.outline !== false
+        };
+      }
+    } catch (_) {}
+    return { folders: true, recent: true, tags: true, outline: true };
+  }
+
+  setCoreFeature(feature, enabled) {
+    if (!this.coreSettings) {
+      this.coreSettings = { folders: true, recent: true, tags: true, outline: true };
+    }
+    this.coreSettings[feature] = Boolean(enabled);
+    localStorage.setItem('obs_core_settings', JSON.stringify(this.coreSettings));
+    eventBus.emit('settings:core_changed', { feature, enabled: Boolean(enabled), coreSettings: this.coreSettings });
+  }
+
+  isCoreFeatureEnabled(feature) {
+    return !this.coreSettings || this.coreSettings[feature] !== false;
   }
 
   setCurrentNote(note) {

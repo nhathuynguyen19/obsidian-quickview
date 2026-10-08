@@ -49,7 +49,9 @@ export class SidebarController {
     // Event bus bindings
     eventBus.on('note:currentChanged', (note) => {
       if (note) {
-        this.addRecentNote(note);
+        if (appState.isCoreFeatureEnabled('recent')) {
+          this.addRecentNote(note);
+        }
         this.highlightActiveNote(note.path);
       }
     });
@@ -57,6 +59,49 @@ export class SidebarController {
     eventBus.on('vault:infoChanged', () => {
       this.loadAll();
     });
+
+    eventBus.on('settings:core_changed', (payload) => {
+      this.onCoreSettingsChanged(payload);
+    });
+
+    this.applyCoreSettings(appState.coreSettings);
+  }
+
+  applyCoreSettings(settings) {
+    if (!settings) return;
+    const tabTree = document.querySelector('.sidebar-tab[data-tab="tree"]');
+    const tabRecent = document.querySelector('.sidebar-tab[data-tab="recent"]');
+    const tabTags = document.querySelector('.sidebar-tab[data-tab="tags"]');
+
+    if (tabTree) tabTree.style.display = settings.folders !== false ? '' : 'none';
+    if (tabRecent) tabRecent.style.display = settings.recent !== false ? '' : 'none';
+    if (tabTags) tabTags.style.display = settings.tags !== false ? '' : 'none';
+
+    // If active tab is now hidden, switch to first visible tab
+    const activeTab = document.querySelector('.sidebar-tab.active');
+    if (activeTab && activeTab.style.display === 'none') {
+      activeTab.classList.remove('active');
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+      const firstVisible = Array.from(this.tabs).find(t => t.style.display !== 'none');
+      if (firstVisible) {
+        firstVisible.classList.add('active');
+        const targetPane = document.getElementById('pane-' + firstVisible.dataset.tab);
+        if (targetPane) targetPane.classList.add('active');
+      }
+    }
+  }
+
+  onCoreSettingsChanged(payload) {
+    this.applyCoreSettings(appState.coreSettings);
+    if (!payload) return;
+    if (payload.feature === 'folders' && payload.enabled) {
+      this.loadTree();
+    } else if (payload.feature === 'recent' && payload.enabled) {
+      this.loadRecent();
+    } else if (payload.feature === 'tags' && payload.enabled) {
+      this.loadTags();
+    }
   }
 
   toggle() {
@@ -67,16 +112,16 @@ export class SidebarController {
   }
 
   async loadAll() {
-    await Promise.all([
-      this.loadTree(),
-      this.loadRecent(),
-      this.loadTags()
-    ]);
+    const promises = [];
+    if (appState.isCoreFeatureEnabled('folders')) promises.push(this.loadTree());
+    if (appState.isCoreFeatureEnabled('recent')) promises.push(this.loadRecent());
+    if (appState.isCoreFeatureEnabled('tags')) promises.push(this.loadTags());
+    await Promise.all(promises);
   }
 
   // --- Folder Tree ---
   async loadTree() {
-    if (!this.treeContainer) return;
+    if (!this.treeContainer || !appState.isCoreFeatureEnabled('folders')) return;
     try {
       const tree = await ApiClient.fetchTree();
       if (!tree) return;
@@ -203,6 +248,7 @@ export class SidebarController {
   }
 
   async loadRecent() {
+    if (!appState.isCoreFeatureEnabled('recent')) return;
     const stored = this.loadRecentNotesFromStorage();
     if (stored !== null) {
       this.recentNotes = stored;
@@ -231,7 +277,7 @@ export class SidebarController {
 
   // --- Tags ---
   async loadTags() {
-    if (!this.tagsContainer) return;
+    if (!this.tagsContainer || !appState.isCoreFeatureEnabled('tags')) return;
     try {
       const data = await ApiClient.fetchTags();
       if (!data || !data.tags) return;

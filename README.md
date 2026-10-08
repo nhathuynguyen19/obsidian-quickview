@@ -65,19 +65,22 @@ Obsidian QuickView **does not replace Obsidian**. Use it for:
 - Export linked-note context as Markdown (depth 1–2)
 - Auto-generated Mermaid graph diagram
 
-## Installation
+## Installation & Management
 
 ```bash
-# Install obs-view command
-bash install.sh
+# Cài đặt / Tự động build lại assets & Khởi động lại toàn bộ server
+./install.sh
 
-# Launch app
+# Gỡ bỏ toàn bộ dịch vụ và phím tắt khỏi hệ thống
+./uninstall.sh
+
+# Khởi chạy giao diện ứng dụng
 obs-view
 
-# Open a specific note
+# Mở trực tiếp một ghi chú
 obs-view "12 Thì"
 
-# Rebuild index
+# Đánh lại toàn bộ chỉ mục tìm kiếm
 obs-view --reindex
 ```
 

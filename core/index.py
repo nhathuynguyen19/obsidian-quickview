@@ -49,8 +49,8 @@ class VaultIndex:
             conn.execute("PRAGMA synchronous = NORMAL")
             conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("""CREATE TABLE IF NOT EXISTS notes (
-                path TEXT PRIMARY KEY, title TEXT, title_norm TEXT, folder TEXT,
-                mtime REAL, size INTEGER, tags TEXT, aliases TEXT, frontmatter TEXT
+                path TEXT PRIMARY KEY, title TEXT, folder TEXT,
+                mtime REAL, size INTEGER, tags TEXT, aliases TEXT, frontmatter TEXT, title_norm TEXT
             )""")
             try:
                 conn.execute("ALTER TABLE notes ADD COLUMN title_norm TEXT")
@@ -62,6 +62,7 @@ class VaultIndex:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_links_source ON links (source_path)")
             conn.execute("CREATE TABLE IF NOT EXISTS attachments (filename TEXT PRIMARY KEY, path TEXT, mtime REAL)")
             conn.execute('CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(path UNINDEXED, title, tags, content, tokenize = "unicode61 remove_diacritics 2")')
+            conn.execute("DELETE FROM notes WHERE typeof(mtime) != 'real' AND typeof(mtime) != 'integer'")
 
     def update_index(self, force: bool = False) -> Dict[str, int]:
         """Incremental update: scans vault and updates modified/new files."""
@@ -109,7 +110,11 @@ class VaultIndex:
                 if file_name.endswith(".md"):
                     current_notes.add(rel_path)
                     prev_mtime = existing_notes.get(rel_path)
-                    if prev_mtime is None or abs(prev_mtime - mtime) > 0.001:
+                    try:
+                        pm_val = float(prev_mtime) if prev_mtime is not None else None
+                    except (ValueError, TypeError):
+                        pm_val = None
+                    if pm_val is None or abs(pm_val - mtime) > 0.001:
                         self._index_single_note(conn, rel_path, full_path, mtime, size)
                         added_or_updated += 1
                         batch_counter += 1
@@ -119,7 +124,11 @@ class VaultIndex:
                 else:
                     current_attachments.add(file_name)
                     prev_mtime = existing_attachments.get(file_name)
-                    if prev_mtime is None or abs(prev_mtime - mtime) > 0.001:
+                    try:
+                        pm_val = float(prev_mtime) if prev_mtime is not None else None
+                    except (ValueError, TypeError):
+                        pm_val = None
+                    if pm_val is None or abs(pm_val - mtime) > 0.001:
                         conn.execute("INSERT OR REPLACE INTO attachments VALUES (?, ?, ?)", (file_name, rel_path, mtime))
 
         for removed_path in set(existing_notes.keys()) - current_notes:
@@ -155,7 +164,7 @@ class VaultIndex:
         conn.execute("DELETE FROM notes WHERE path = ?", (rel_path,))
         conn.execute("DELETE FROM links WHERE source_path = ?", (rel_path,))
         conn.execute("DELETE FROM notes_fts WHERE path = ?", (rel_path,))
-        conn.execute("INSERT INTO notes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (rel_path, title, title_norm, folder, mtime, size, tags_str, aliases_str, json.dumps(frontmatter, ensure_ascii=False)))
+        conn.execute("INSERT INTO notes (path, title, title_norm, folder, mtime, size, tags, aliases, frontmatter) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (rel_path, title, title_norm, folder, mtime, size, tags_str, aliases_str, json.dumps(frontmatter, ensure_ascii=False)))
         for link in extract_wikilinks(raw_text):
             conn.execute("INSERT INTO links VALUES (?, ?, ?, ?)", (rel_path, link["target"], link["anchor"], 1 if link["is_embed"] else 0))
         conn.execute("INSERT INTO notes_fts VALUES (?, ?, ?, ?)", (rel_path, title, tags_str, content))

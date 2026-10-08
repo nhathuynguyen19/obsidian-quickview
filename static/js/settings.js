@@ -91,23 +91,20 @@ export class SettingsModalController {
     });
 
     // Settings tabs
-    if (this.tabBtnLanguage && this.tabBtnHotkeys) {
-      this.tabBtnLanguage.addEventListener('click', () => {
-        this.tabBtnLanguage.classList.add('active');
-        this.tabBtnHotkeys.classList.remove('active');
-        if (this.paneLanguage) this.paneLanguage.style.display = 'block';
-        if (this.paneHotkeys) this.paneHotkeys.style.display = 'none';
+    const navTabs = document.querySelectorAll('.settings-nav-tab');
+    navTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        navTabs.forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.settings-tab-pane').forEach(p => p.style.display = 'none');
+        tab.classList.add('active');
+        const targetPane = document.getElementById(`settings-pane-${tab.dataset.tab}`);
+        if (targetPane) targetPane.style.display = 'block';
+        if (tab.dataset.tab === 'hotkeys') {
+          this.renderHotkeys();
+          this.renderSnippets();
+        }
       });
-
-      this.tabBtnHotkeys.addEventListener('click', () => {
-        this.tabBtnHotkeys.classList.add('active');
-        this.tabBtnLanguage.classList.remove('active');
-        if (this.paneLanguage) this.paneLanguage.style.display = 'none';
-        if (this.paneHotkeys) this.paneHotkeys.style.display = 'block';
-        this.renderHotkeys();
-        this.renderSnippets();
-      });
-    }
+    });
 
     // Hotkey subtabs
     if (this.subtabBtnButtons) {
@@ -181,6 +178,7 @@ export class SettingsModalController {
     this.renderHotkeys();
     this.renderSnippets();
     this.backdrop.classList.add('active');
+    eventBus.emit('settings:opened');
   }
 
   close() {

@@ -14,6 +14,7 @@ import { SidebarController } from './sidebar.js';
 import { NoteViewerController } from './note.js';
 import { VaultModalController } from './vault.js';
 import { SettingsModalController } from './settings.js';
+import { CoreSettingsController } from './core_settings.js';
 
 // Configure Marked.js link renderer and syntax highlighting
 if (typeof marked !== 'undefined') {
@@ -60,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const search = new SearchModalController();
   const vault = new VaultModalController();
   const settings = new SettingsModalController();
+  const coreSettings = new CoreSettingsController();
 
   // Wire TOC with CodeMirror instance once editor is started
   eventBus.on('editing:stateChanged', () => {

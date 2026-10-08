@@ -428,6 +428,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="6" y1="8" x2="6" y2="8"></line><line x1="10" y1="8" x2="10" y2="8"></line><line x1="14" y1="8" x2="14" y2="8"></line><line x1="18" y1="8" x2="18" y2="8"></line><line x1="6" y1="12" x2="6" y2="12"></line><line x1="10" y1="12" x2="10" y2="12"></line><line x1="14" y1="12" x2="14" y2="12"></line><line x1="18" y1="12" x2="18" y2="12"></line><line x1="8" y1="16" x2="16" y2="16"></line></svg>
           <span data-i18n="settings.tabHotkeys">Phím tắt</span>
         </button>
+        <button type="button" class="settings-nav-tab" data-tab="core" id="settings-tab-btn-core">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          <span data-i18n="settings.tabCore">Tính năng cốt lõi</span>
+        </button>
       </div>
 
       <div class="settings-modal-body">
@@ -507,6 +511,67 @@
           <div class="hotkeys-subpane" id="hotkeys-subpane-snippets" style="display: none;">
             <div class="hotkeys-list" id="hotkeys-snippets-list">
               <!-- Dynamically populated custom snippet rows -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Pane 3: Core Features -->
+        <div class="settings-tab-pane" id="settings-pane-core" style="display: none;">
+          <div class="settings-section">
+            <div class="settings-section-header">
+              <div class="settings-section-info">
+                <span class="settings-section-title" data-i18n="settings.sectionCore">Quản lý tính năng cốt lõi (Core Features)</span>
+                <span class="settings-section-desc" data-i18n="settings.sectionCoreDesc">Bật hoặc tắt các tính năng giao diện. Khi tắt, tính năng sẽ bị ẩn và không chạy ngầm.</span>
+              </div>
+            </div>
+            <div class="settings-toggle-list">
+              <!-- Feature: Folders -->
+              <div class="settings-toggle-item">
+                <div class="settings-toggle-info">
+                  <span class="settings-toggle-title" data-i18n="settings.coreFoldersTitle">Thư mục (Folders)</span>
+                  <span class="settings-toggle-desc" data-i18n="settings.coreFoldersDesc">Hiển thị cây danh mục thư mục trong Vault ở thanh bên trái.</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-core-folders" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Feature: Recent -->
+              <div class="settings-toggle-item">
+                <div class="settings-toggle-info">
+                  <span class="settings-toggle-title" data-i18n="settings.coreRecentTitle">Ghi chú gần đây (Recent Notes)</span>
+                  <span class="settings-toggle-desc" data-i18n="settings.coreRecentDesc">Lưu và hiển thị danh sách các ghi chú đã mở gần đây.</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-core-recent" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Feature: Tags -->
+              <div class="settings-toggle-item">
+                <div class="settings-toggle-info">
+                  <span class="settings-toggle-title" data-i18n="settings.coreTagsTitle">Thẻ ghi chú (Tags)</span>
+                  <span class="settings-toggle-desc" data-i18n="settings.coreTagsDesc">Hiển thị danh sách thẻ hashtag (#tags) trong Vault.</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-core-tags" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Feature: Outline -->
+              <div class="settings-toggle-item">
+                <div class="settings-toggle-info">
+                  <span class="settings-toggle-title" data-i18n="settings.coreOutlineTitle">Mục lục (Outline / TOC)</span>
+                  <span class="settings-toggle-desc" data-i18n="settings.coreOutlineDesc">Hiển thị cây tiêu đề (Headings) và ScrollSpy ở thanh bên phải.</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-core-outline" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
             </div>
           </div>
         </div>

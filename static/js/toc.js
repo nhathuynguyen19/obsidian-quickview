@@ -60,6 +60,37 @@ export class TocController {
         }
       }, { passive: true });
     }
+
+    eventBus.on('settings:core_changed', (payload) => {
+      this.onCoreSettingsChanged(payload);
+    });
+
+    this.applyCoreSettings(appState.coreSettings);
+  }
+
+  applyCoreSettings(settings) {
+    if (!settings) return;
+    const isEnabled = settings.outline !== false;
+    if (this.btnToggle) {
+      this.btnToggle.style.display = isEnabled ? '' : 'none';
+    }
+    if (!isEnabled) {
+      if (this.panel) {
+        this.panel.classList.add('collapsed');
+        this.panel.style.display = 'none';
+      }
+      if (this.list) this.list.innerHTML = '';
+      if (this.countBadge) this.countBadge.textContent = '0';
+    } else {
+      this.applyState(appState.isTocOpen);
+      if (appState.isTocOpen) {
+        this.generate();
+      }
+    }
+  }
+
+  onCoreSettingsChanged() {
+    this.applyCoreSettings(appState.coreSettings);
   }
 
   setEditorInstance(instance) {
@@ -82,6 +113,7 @@ export class TocController {
   }
 
   scheduleUpdate() {
+    if (!appState.isCoreFeatureEnabled('outline')) return;
     clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       if (appState.isEditing) {
@@ -91,7 +123,7 @@ export class TocController {
   }
 
   generate() {
-    if (!this.list) return;
+    if (!this.list || !appState.isCoreFeatureEnabled('outline')) return;
 
     if (!appState.isEditing && !appState.currentNote) {
       this.list.innerHTML = `<div class="toc-empty">${window.I18n ? window.I18n.t('toc.emptyNoNote') : 'Chưa chọn ghi chú nào'}</div>`;
@@ -222,7 +254,7 @@ export class TocController {
   }
 
   updateActiveItem() {
-    if (!this.list) return;
+    if (!this.list || !appState.isCoreFeatureEnabled('outline')) return;
 
     if (appState.isEditing) {
       const editContainer = document.getElementById('edit-container');
