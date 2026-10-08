@@ -1,12 +1,51 @@
 /**
  * Obsidian QuickView - Editor Controller
- * Encapsulates CodeMirror 6 instance, live/source/split/preview modes, and note saving.
+ * Encapsulates CodeMirror 6 instance, live/source/split/preview modes, lazy-loading, and note saving.
  */
 
 import { eventBus } from './events.js';
 import { appState } from './state.js';
 import { ApiClient } from './api.js';
 import { renderMarkdown, loadKatex } from './markdown.js';
+
+let cm6LoadPromise = null;
+
+export function loadCodeMirror6() {
+  if (window.ObsidianCM6 && window.__OQCM6_RUNTIME_V33) return Promise.resolve(window.ObsidianCM6);
+  if (cm6LoadPromise) return cm6LoadPromise;
+  const loadScript = (src) => new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  const baseReady = window.__OQCM6 ? Promise.resolve() : loadScript('/static/cm6-bundle.min.js?v=23');
+  cm6LoadPromise = baseReady
+    .then(() => loadScript('/static/cm6-live-preview-runtime.js?v=33'))
+    .then(() => {
+      if (!window.ObsidianCM6) throw new Error('CodeMirror 6 failed to initialize');
+      return window.ObsidianCM6;
+    })
+    .catch((err) => { cm6LoadPromise = null; throw err; });
+  return cm6LoadPromise;
+}
+
+export function getScrollRatio(element) {
+  if (!element) return 0;
+  const max = Math.max(0, element.scrollHeight - element.clientHeight);
+  return max > 0 ? Math.max(0, Math.min(1, element.scrollTop / max)) : 0;
+}
+
+export function restoreScrollRatio(element, ratio) {
+  if (!element) return;
+  const safeRatio = Math.max(0, Math.min(1, Number(ratio) || 0));
+  requestAnimationFrame(() => {
+    const max = Math.max(0, element.scrollHeight - element.clientHeight);
+    element.scrollTop = max * safeRatio;
+  });
+}
 
 export class EditorController {
   constructor() {
@@ -64,11 +103,19 @@ export class EditorController {
 
   updateStats(text) {
     if (!this.editStats) return;
-    const lines = text.split('\n').length;
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const str = typeof text === 'string' ? text : (this.cmInstance ? this.cmInstance.getValue() : '');
+    const lines = str.split('\n').length;
+    const words = str.trim() ? str.trim().split(/\s+/).length : 0;
     this.editStats.textContent = window.I18n
       ? window.I18n.t('editor.stats', { words, lines })
       : `${words} từ | ${lines} dòng`;
+  }
+
+  releasePreviewDom() {
+    clearTimeout(this.livePreviewDebounceTimer);
+    if (this.previewBody) {
+      this.previewBody.replaceChildren();
+    }
   }
 
   updateLivePreview() {
@@ -106,6 +153,7 @@ export class EditorController {
       if (this.cmInstance) this.cmInstance.setLivePreview(true);
       if (this.sourcePane) this.sourcePane.style.display = 'block';
       if (this.previewPane) this.previewPane.style.display = 'none';
+      this.releasePreviewDom();
       if (this.cmInstance) this.cmInstance.focus();
     } else if (mode === 'source') {
       if (this.btnSource) this.btnSource.classList.add('active');
@@ -113,6 +161,7 @@ export class EditorController {
       if (this.cmInstance) this.cmInstance.setLivePreview(false);
       if (this.sourcePane) this.sourcePane.style.display = 'block';
       if (this.previewPane) this.previewPane.style.display = 'none';
+      this.releasePreviewDom();
       if (this.cmInstance) this.cmInstance.focus();
     } else if (mode === 'split') {
       if (this.btnSplit) this.btnSplit.classList.add('active');
@@ -131,13 +180,32 @@ export class EditorController {
     }
   }
 
-  initCodeMirror() {
+  destroyCodeMirror() {
+    clearTimeout(this.livePreviewDebounceTimer);
+    if (this.cmInstance) {
+      try {
+        this.cmInstance.destroy();
+      } catch (_) {}
+      this.cmInstance = null;
+    }
+    if (this.editorMount) {
+      this.editorMount.replaceChildren();
+    }
+  }
+
+  initCodeMirror(rawText) {
     if (this.cmInstance || !window.ObsidianCM6 || !this.editorMount) return;
+    const initialDoc = typeof rawText === 'string'
+      ? rawText
+      : (appState.currentNote ? (appState.currentNote.raw_content || '') : '');
+
     this.cmInstance = window.ObsidianCM6.createEditor(this.editorMount, {
-      doc: appState.currentNote ? appState.currentNote.raw_content : '',
+      doc: initialDoc,
+      notePath: appState.currentNote ? appState.currentNote.path : '',
       theme: appState.currentTheme,
       livePreview: appState.currentEditMode !== 'source',
-      onChange: (text) => {
+      onChange: () => {
+        const text = this.cmInstance ? this.cmInstance.getValue() : '';
         this.updateStats(text);
         eventBus.emit('editor:contentChanged', text);
         if (appState.currentEditMode === 'split' || appState.currentEditMode === 'preview') {
@@ -157,38 +225,65 @@ export class EditorController {
     }
   }
 
-  startEditing() {
-    if (!appState.currentNote) return;
-    appState.setIsEditing(true);
-
+  async startEditing() {
+    if (!appState.currentNote || appState.isEditing) return;
     const noteContainer = document.getElementById('note-container');
-    const noteContentWrapper = document.getElementById('note-content-wrapper');
-    if (noteContainer) noteContainer.style.display = 'none';
-    if (noteContentWrapper) noteContentWrapper.style.display = 'none';
-    if (this.container) this.container.style.display = 'flex';
+    const readingScrollRatio = getScrollRatio(noteContainer);
 
-    if (!this.cmInstance) {
-      this.initCodeMirror();
-    }
-
-    if (this.cmInstance) {
-      this.cmInstance.setValue(appState.currentNote.raw_content);
-      this.cmInstance.setTheme(appState.currentTheme);
-    }
-
-    this.setMode(appState.currentEditMode);
-    this.updateStats(appState.currentNote.raw_content);
-    this.updateLivePreview();
-
-    setTimeout(() => {
-      if (this.cmInstance && appState.currentEditMode !== 'preview') {
-        this.cmInstance.focus();
+    try {
+      let rawText = appState.currentNote.raw_content;
+      if (typeof rawText !== 'string') {
+        try {
+          const rawRes = await ApiClient.fetchNoteRaw(appState.currentNote.path);
+          if (rawRes && typeof rawRes.raw_content === 'string') {
+            rawText = rawRes.raw_content;
+            appState.currentNote.raw_content = rawText;
+          }
+        } catch (_) {}
+        if (typeof rawText !== 'string') {
+          rawText = appState.currentNote.content || '';
+        }
       }
-    }, 20);
+
+      await loadCodeMirror6();
+
+      const noteContentWrapper = document.getElementById('note-content-wrapper');
+      if (noteContainer) noteContainer.style.display = 'none';
+      if (noteContentWrapper) noteContentWrapper.style.display = 'none';
+      if (this.container) this.container.style.display = 'flex';
+
+      this.destroyCodeMirror();
+      this.initCodeMirror(rawText);
+
+      this.setMode(appState.currentEditMode);
+      this.updateStats(rawText);
+      if (appState.currentEditMode === 'split' || appState.currentEditMode === 'preview') {
+        this.updateLivePreview();
+      }
+
+      appState.setIsEditing(true);
+      eventBus.emit('editing:stateChanged', true);
+
+      restoreScrollRatio(this.container, readingScrollRatio);
+
+      setTimeout(() => {
+        if (this.cmInstance && appState.currentEditMode !== 'preview') {
+          this.cmInstance.focus();
+        }
+      }, 20);
+    } catch (err) {
+      console.error('Failed to initialize editor:', err);
+      alert((window.I18n ? window.I18n.t('app.error') : 'Lỗi') + ': ' + err.message);
+      this.cancelEditing();
+    }
   }
 
   cancelEditing() {
+    this.destroyCodeMirror();
+    this.releasePreviewDom();
     appState.setIsEditing(false);
+    eventBus.emit('editing:stateChanged', false);
+
     if (this.container) this.container.style.display = 'none';
     const noteContainer = document.getElementById('note-container');
     const noteContentWrapper = document.getElementById('note-content-wrapper');
@@ -222,7 +317,9 @@ export class EditorController {
             if (noteBody) {
               noteBody.innerHTML = renderMarkdown(updated.content, updated.path);
             }
-            this.updateLivePreview();
+            if (appState.currentEditMode === 'split' || appState.currentEditMode === 'preview') {
+              this.updateLivePreview();
+            }
             eventBus.emit('note:updated', updated);
           }
         } catch (_ignore) {}

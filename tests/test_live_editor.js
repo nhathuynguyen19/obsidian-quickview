@@ -9,10 +9,12 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const appJs = fs.readFileSync(path.join(root, 'static/app.js'), 'utf8');
+const jsFiles = ['static/app.js', 'static/js/app.js', 'static/js/editor.js', 'static/js/markdown.js', 'static/js/api.js', 'static/js/note.js'];
+const appJs = jsFiles.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
 const runtimeJs = fs.readFileSync(path.join(root, 'static/cm6-live-preview-runtime.js'), 'utf8');
 const entryJs = fs.readFileSync(path.join(root, 'scripts/cm6-entry.js'), 'utf8');
-const appCss = fs.readFileSync(path.join(root, 'static/app.css'), 'utf8');
+const cssFiles = ['static/app.css', 'static/css/live-preview.css', 'static/css/editor.css'];
+const appCss = cssFiles.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
 const indexHtml = fs.readFileSync(path.join(root, 'static/index.html'), 'utf8');
 
 // Section 20 Mandatory Test Fixture
@@ -469,18 +471,7 @@ global.marked = require('../static/marked.min.js');
 global.hljs = require('../static/highlight.min.js');
 global.katex = require('../static/katex.min.js');
 
-const renderLatexMatch = appJs.match(/function renderLatex[\s\S]*?\n  \}/);
-const renderMarkdownMatch = appJs.match(/function renderMarkdown[\s\S]*?\n  \}/);
-
-const renderLatex = new Function('latex', 'isBlock', 'katex', `
-  ${renderLatexMatch[0]}
-  return renderLatex(latex, isBlock);
-`).bind(null);
-
-const renderMarkdown = new Function('rawMd', 'currentNotePath', 'marked', 'katex', 'renderLatex', `
-  ${renderMarkdownMatch[0]}
-  return renderMarkdown(rawMd, currentNotePath);
-`).bind(null);
+const { renderMarkdown, renderLatex } = require('../static/js/markdown.js');
 
 const html = renderMarkdown(FIXTURE_MD, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
 

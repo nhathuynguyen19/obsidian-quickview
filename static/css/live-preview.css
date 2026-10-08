@@ -1,0 +1,244 @@
+/**
+ * Obsidian QuickView - CodeMirror 6 Live Preview Styles
+ * Structural block styling, syntax concealment, atomic ranges, and completion popup.
+ */
+
+/* Highlight syntax in reading view and live preview */
+.obs-highlight,
+.cm-editor.cm-live-mode .cm-highlight {
+  background: color-mix(in srgb, #ffd84d 42%, transparent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Footnotes */
+.footnotes {
+  margin-top: 2rem;
+  color: var(--text-muted);
+  font-size: 0.92em;
+}
+.footnotes ol { padding-left: 1.4rem; }
+.footnote-ref { font-size: 0.78em; vertical-align: super; }
+.footnote-backref { margin-left: 0.45em; text-decoration: none; }
+
+/* Note embeds */
+.embed-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+}
+.embed-note:hover { border-color: var(--accent-purple); }
+.embed-note-icon { color: var(--accent-purple); }
+
+/* Collapsible callouts */
+.callout[data-fold] > .callout-title { cursor: pointer; user-select: none; }
+.callout .callout-fold { margin-left: auto; transition: transform 120ms ease; }
+.callout.is-collapsed > .callout-body { display: none; }
+.callout.is-collapsed .callout-fold { transform: rotate(-90deg); }
+.callout-important { border-left-color: #8b5cf6; }
+.callout-important .callout-title { color: #8b5cf6; }
+.callout-caution { border-left-color: #f97316; }
+.callout-caution .callout-title { color: #f97316; }
+.callout-success, .callout-check, .callout-done { border-left-color: #22c55e; }
+.callout-failure, .callout-fail, .callout-missing { border-left-color: #ef4444; }
+.callout-question, .callout-help, .callout-faq { border-left-color: #eab308; }
+.callout-bug { border-left-color: #dc2626; }
+.callout-example { border-left-color: #a855f7; }
+.callout-quote, .callout-cite { border-left-color: #64748b; }
+
+/* Live Preview inline widgets */
+.cm-live-inline-widget { display: inline; }
+.cm-live-inline-math .math-inline { display: inline; }
+.cm-editor.cm-live-mode .cm-footnote-ref { color: var(--accent-purple); font-size: 0.82em; vertical-align: super; }
+.cm-editor.cm-live-mode .cm-block-id { color: var(--text-muted); font-size: 0.82em; }
+.cm-live-property-checkbox {
+  width: 16px !important;
+  height: 16px;
+  margin: 2px 0 !important;
+  box-shadow: none !important;
+}
+.cm-live-property-number,
+.cm-live-property-date,
+.cm-live-property-datetime-local { max-width: 260px; }
+
+/* Frontmatter properties */
+.cm-live-property-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.cm-live-property-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 32%, var(--border-color));
+  background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+  color: var(--text-normal);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.cm-live-property-checkbox-display {
+  pointer-events: none;
+  accent-color: var(--accent-purple);
+}
+
+/* Rendered block widgets */
+#cm-editor-mount .cm-live-rendered-block {
+  margin-top: 0.45em;
+  margin-bottom: 0.65em;
+}
+#cm-editor-mount .cm-live-block-callout .callout {
+  margin: 0;
+}
+#cm-editor-mount .cm-live-block-footnote .footnotes {
+  margin: 0.25em 0 0.45em;
+}
+#cm-editor-mount .cm-live-block-footnote .footnotes > hr {
+  display: none;
+}
+#cm-editor-mount .cm-line.cm-line-rendered-block-hidden {
+  display: none !important;
+}
+
+/* Reading Frontmatter Properties */
+.frontmatter-title {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.frontmatter-val {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.frontmatter-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 28%, var(--border-color));
+  background: color-mix(in srgb, var(--accent-purple) 9%, transparent);
+  color: var(--text-normal);
+  line-height: 1.25;
+}
+
+/* Autocomplete Popup */
+.oq-cm-completion {
+  position: fixed;
+  z-index: 9999;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.oq-cm-completion[hidden] { display: none !important; }
+.oq-cm-completion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: default;
+  color: var(--text-normal);
+}
+.oq-cm-completion-item:hover,
+.oq-cm-completion-item.is-selected {
+  background: rgba(124, 58, 237, 0.12);
+}
+.oq-cm-completion-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oq-cm-completion-detail {
+  flex: 0 0 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* List markers */
+.cm-live-list-marker {
+  display: inline-block;
+  min-width: 1.15em;
+  margin-right: 0.35em;
+  color: var(--accent-purple);
+  font-weight: 700;
+  text-align: center;
+  user-select: none;
+}
+.cm-live-list-marker.is-ordered {
+  min-width: 1.55em;
+  margin-right: 0.25em;
+  font-weight: 600;
+}
+
+.cm-live-footnote-widget {
+  color: var(--accent-purple);
+  font-size: 0.78em;
+  line-height: 1;
+  vertical-align: super;
+  cursor: text;
+}
+
+/* Source-preserving structural blocks */
+#cm-editor-mount .cm-line.cm-line-callout {
+  background: color-mix(in srgb, var(--accent-purple) 5%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--accent-purple) 58%, var(--border-color));
+  padding-left: 12px;
+  padding-right: 8px;
+}
+#cm-editor-mount .cm-line.cm-line-callout-first {
+  padding-top: 7px;
+  border-top-right-radius: 6px;
+}
+#cm-editor-mount .cm-line.cm-line-callout-last {
+  padding-bottom: 7px;
+  border-bottom-right-radius: 6px;
+  margin-bottom: 0.45em;
+}
+#cm-editor-mount .cm-line.cm-line-footnote-definition {
+  color: var(--text-muted);
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--accent-purple) 32%, var(--border-color));
+}
+
+#cm-editor-mount .cm-line.cm-line-codeblock-fence {
+  opacity: 0.58;
+  font-size: 0.86em;
+}
+
+/* 1:1 coordinate geometry in CodeMirror 6 content */
+#cm-editor-mount .cm-content > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+#cm-editor-mount .cm-line-callout-last {
+  margin-bottom: 0 !important;
+}
+#cm-editor-mount .cm-live-table-widget table {
+  margin: 0 !important;
+}

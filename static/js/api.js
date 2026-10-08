@@ -22,6 +22,10 @@ export class ApiClient {
     return this.fetchJson(`/api/note?path=${encodeURIComponent(path)}`);
   }
 
+  static async fetchNoteRaw(path) {
+    return this.fetchJson(`/api/note/raw?path=${encodeURIComponent(path)}`);
+  }
+
   static async saveNote(path, content) {
     return this.fetchJson('/api/save', {
       method: 'POST',
@@ -61,6 +65,10 @@ export class ApiClient {
 
   static async fetchTree() {
     return this.fetchJson('/api/tree');
+  }
+
+  static async fetchTreeLevel(folder = '') {
+    return this.fetchJson(`/api/tree-level?folder=${encodeURIComponent(folder)}`);
   }
 
   static async fetchTags() {

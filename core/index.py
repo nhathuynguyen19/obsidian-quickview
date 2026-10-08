@@ -47,69 +47,21 @@ class VaultIndex:
         with self._get_connection() as conn:
             conn.execute("PRAGMA journal_mode = WAL")
             conn.execute("PRAGMA synchronous = NORMAL")
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS meta (
-                key TEXT PRIMARY KEY,
-                value TEXT
+            conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+            conn.execute("""CREATE TABLE IF NOT EXISTS notes (
+                path TEXT PRIMARY KEY, title TEXT, title_norm TEXT, folder TEXT,
+                mtime REAL, size INTEGER, tags TEXT, aliases TEXT, frontmatter TEXT
             )""")
-
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS notes (
-                path TEXT PRIMARY KEY,
-                title TEXT,
-                title_norm TEXT,
-                folder TEXT,
-                mtime REAL,
-                size INTEGER,
-                tags TEXT,
-                aliases TEXT,
-                frontmatter TEXT
-            )""")
-
-            # Lightweight migration for databases created before title_norm existed.
-            # title_norm keeps accent-insensitive substring fallback inside SQLite instead
-            # of materializing the entire notes table in Python during search.
-            note_columns = {row[1] for row in conn.execute("PRAGMA table_info(notes)")}
-            if "title_norm" not in note_columns:
+            try:
                 conn.execute("ALTER TABLE notes ADD COLUMN title_norm TEXT")
-                migration_cursor = conn.execute("SELECT path, title FROM notes")
-                while True:
-                    rows = migration_cursor.fetchmany(1000)
-                    if not rows:
-                        break
-                    conn.executemany(
-                        "UPDATE notes SET title_norm = ? WHERE path = ?",
-                        [(remove_diacritics(row[1] or "").lower(), row[0]) for row in rows],
-                    )
+            except sqlite3.OperationalError:
+                pass
             conn.execute("CREATE INDEX IF NOT EXISTS idx_notes_title_norm ON notes (title_norm)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_notes_folder ON notes (folder)")
-
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS links (
-                source_path TEXT,
-                target_title TEXT,
-                anchor TEXT,
-                is_embed INTEGER
-            )""")
+            conn.execute("CREATE TABLE IF NOT EXISTS links (source_path TEXT, target_title TEXT, anchor TEXT, is_embed INTEGER)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_links_target ON links (target_title)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_links_source ON links (source_path)")
-
-            conn.execute("""
-            CREATE TABLE IF NOT EXISTS attachments (
-                filename TEXT PRIMARY KEY,
-                path TEXT,
-                mtime REAL
-            )""")
-
-            # FTS5 Virtual Table for Instant Search
-            conn.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-                path UNINDEXED,
-                title,
-                tags,
-                content,
-                tokenize = "unicode61 remove_diacritics 2"
-            )""")
+            conn.execute("CREATE TABLE IF NOT EXISTS attachments (filename TEXT PRIMARY KEY, path TEXT, mtime REAL)")
+            conn.execute('CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(path UNINDEXED, title, tags, content, tokenize = "unicode61 remove_diacritics 2")')
 
     def update_index(self, force: bool = False) -> Dict[str, int]:
         """Incremental update: scans vault and updates modified/new files."""
@@ -217,6 +169,7 @@ class VaultIndex:
             raw_text = ""
 
         title = os.path.splitext(os.path.basename(rel_path))[0]
+        title_norm = remove_diacritics(title).lower()
         folder = os.path.dirname(rel_path) or "/"
 
         frontmatter, content = extract_frontmatter_and_content(raw_text)
@@ -232,14 +185,10 @@ class VaultIndex:
         conn.execute("DELETE FROM links WHERE source_path = ?", (rel_path,))
         conn.execute("DELETE FROM notes_fts WHERE path = ?", (rel_path,))
 
-        title_norm = remove_diacritics(title).lower()
         conn.execute(
             """INSERT INTO notes (path, title, title_norm, folder, mtime, size, tags, aliases, frontmatter)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                rel_path, title, title_norm, folder, mtime, size, tags_str, aliases_str,
-                json.dumps(frontmatter, ensure_ascii=False),
-            )
+            (rel_path, title, title_norm, folder, mtime, size, tags_str, aliases_str, json.dumps(frontmatter, ensure_ascii=False))
         )
 
         wikilinks = extract_wikilinks(raw_text)
@@ -259,14 +208,9 @@ class VaultIndex:
         return self.search_engine.search(query, mode=mode, limit=limit)
 
     def get_note_by_path(self, rel_path: str, include_raw: bool = True) -> Optional[Dict[str, Any]]:
-        """Get note content, metadata, and backlinks.
-
-        Reading clients can set include_raw=False to avoid sending a second copy of
-        the note over JSON. Raw Markdown is fetched on demand only when editing or
-        copying source.
-        """
+        """Get full note content, metadata, and backlinks."""
         full_path = self._safe_note_path(rel_path)
-        if not full_path or not os.path.isfile(full_path):
+        if not full_path or not os.path.exists(full_path):
             return None
 
         try:
@@ -294,7 +238,7 @@ class VaultIndex:
         backlinks = [dict(r) for r in cursor.fetchall()]
         conn.close()
 
-        result = {
+        res = {
             "path": rel_path,
             "title": title,
             "folder": os.path.dirname(rel_path) or "/",
@@ -306,24 +250,19 @@ class VaultIndex:
             "backlinks": backlinks,
         }
         if include_raw:
-            result["raw_content"] = raw_content
-        return result
+            res["raw_content"] = raw_content
+        return res
 
     def get_note_raw(self, rel_path: str) -> Optional[Dict[str, Any]]:
-        """Read only raw Markdown plus minimal metadata for editor/copy workflows."""
+        """Get raw note content without metadata overhead."""
         full_path = self._safe_note_path(rel_path)
         if not full_path or not os.path.isfile(full_path):
             return None
         try:
             with open(full_path, "r", encoding="utf-8", errors="replace") as f:
                 raw_content = f.read()
-            return {
-                "path": rel_path,
-                "raw_content": raw_content,
-                "mtime": os.path.getmtime(full_path),
-                "size": os.path.getsize(full_path),
-            }
-        except OSError:
+            return {"path": rel_path, "raw_content": raw_content}
+        except Exception:
             return None
 
     def resolve_target(self, target_title: str) -> Optional[str]:
@@ -383,11 +322,7 @@ class VaultIndex:
         return None
 
     def get_tree_level(self, folder: str = "") -> Dict[str, Any]:
-        """Return one folder level for lazy file-tree rendering.
-
-        This intentionally avoids constructing the whole vault tree in memory/DOM.
-        Folder paths use forward slashes at the API boundary.
-        """
+        """Return one folder level for lazy file-tree rendering."""
         folder = (folder or "").replace("\\", "/").strip("/")
         db_folder = folder.replace("/", os.sep) if folder else "/"
         prefix = (db_folder + os.sep) if folder else ""
@@ -398,16 +333,10 @@ class VaultIndex:
             "SELECT path, title FROM notes WHERE folder = ? ORDER BY title COLLATE NOCASE ASC",
             (db_folder,),
         )
-        files = [
-            {"name": row["title"], "type": "file", "path": row["path"]}
-            for row in cursor.fetchall()
-        ]
+        files = [{"name": row["title"], "type": "file", "path": row["path"]} for row in cursor.fetchall()]
 
         if folder:
-            cursor.execute(
-                "SELECT DISTINCT folder FROM notes WHERE folder LIKE ? AND folder != ?",
-                (prefix + "%", db_folder),
-            )
+            cursor.execute("SELECT DISTINCT folder FROM notes WHERE folder LIKE ? AND folder != ?", (prefix + "%", db_folder))
         else:
             cursor.execute("SELECT DISTINCT folder FROM notes WHERE folder != '/'")
 
@@ -425,12 +354,7 @@ class VaultIndex:
         conn.close()
 
         folders = [
-            {
-                "name": name,
-                "type": "folder",
-                "path": f"{folder}/{name}" if folder else name,
-                "has_children": True,
-            }
+            {"name": name, "type": "folder", "path": f"{folder}/{name}" if folder else name, "has_children": True}
             for name in sorted(child_names, key=str.casefold)
         ]
         return {
@@ -490,168 +414,9 @@ class VaultIndex:
         """
         Traverse outgoing wikilinks up to max_depth (1 or 2) and generate full context markdown
         with Mermaid diagram graph and note contents.
+        Delegates to ContextBuilder.
         """
-        root_note = self.get_note_by_path(root_path)
-        if not root_note:
-            return None
+        from core.context import ContextBuilder
+        return ContextBuilder.build_context(self, root_path, max_depth=max_depth)
 
-        max_depth = max(1, min(2, int(max_depth)))
-
-        collected_notes: Dict[str, Dict[str, Any]] = {}
-        edges: List[Tuple[str, str]] = []
-
-        # BFS queue: (path, current_depth)
-        queue = [(root_path, 0)]
-        def format_relative_time(mtime_val: float) -> str:
-            diff = time.time() - mtime_val
-            if diff < 60:
-                return "just now"
-            elif diff < 3600:
-                mins = max(1, int(diff / 60))
-                return f"{mins} minute{'s' if mins > 1 else ''} ago"
-            elif diff < 86400:
-                hours = max(1, int(diff / 3600))
-                return f"{hours} hour{'s' if hours > 1 else ''} ago"
-            elif diff < 86400 * 30:
-                days = max(1, int(diff / 86400))
-                return f"{days} day{'s' if days > 1 else ''} ago"
-            elif diff < 86400 * 365:
-                months = max(1, int(diff / (86400 * 30)))
-                return f"{months} month{'s' if months > 1 else ''} ago"
-            else:
-                years = max(1, int(diff / (86400 * 365)))
-                return f"{years} year{'s' if years > 1 else ''} ago"
-
-        root_mtime = root_note.get("mtime", time.time())
-        collected_notes[root_path] = {
-            "depth": 0,
-            "title": root_note["title"],
-            "path": root_path,
-            "folder": root_note.get("folder", ""),
-            "mtime": root_mtime,
-            "updated_str": format_relative_time(root_mtime),
-            "raw_content": root_note.get("raw_content", ""),
-            "is_current": True,
-        }
-
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        while queue:
-            curr_path, curr_depth = queue.pop(0)
-            if curr_depth >= max_depth:
-                continue
-
-            cursor.execute(
-                "SELECT target_title FROM links WHERE source_path = ? AND is_embed = 0",
-                (curr_path,)
-            )
-            for lr in cursor.fetchall():
-                target_title = lr["target_title"]
-                resolved_rel = self.resolve_target(target_title)
-                if resolved_rel and resolved_rel.endswith(".md"):
-                    edges.append((curr_path, resolved_rel))
-                    if resolved_rel not in collected_notes:
-                        note_data = self.get_note_by_path(resolved_rel)
-                        if note_data:
-                            note_mtime = note_data.get("mtime", time.time())
-                            collected_notes[resolved_rel] = {
-                                "depth": curr_depth + 1,
-                                "title": note_data["title"],
-                                "path": resolved_rel,
-                                "folder": note_data.get("folder", ""),
-                                "mtime": note_mtime,
-                                "updated_str": format_relative_time(note_mtime),
-                                "raw_content": note_data.get("raw_content", ""),
-                                "is_current": False,
-                            }
-                            if curr_depth + 1 < max_depth:
-                                queue.append((resolved_rel, curr_depth + 1))
-
-        conn.close()
-
-        # Build ASCII directory tree
-        def build_tree_ascii(notes_dict: Dict[str, Dict[str, Any]]) -> str:
-            tree: Dict[str, Any] = {}
-            for p, n in notes_dict.items():
-                parts = p.split(os.sep)
-                curr = tree
-                for seg in parts[:-1]:
-                    curr = curr.setdefault(seg + "/", {})
-                leaf_name = parts[-1] + (" (current)" if n.get("is_current") else "")
-                curr[leaf_name] = None
-
-            lines: List[str] = []
-
-            def render(d: Dict[str, Any], prefix: str = ""):
-                items = list(d.items())
-                for idx, (name, subtree) in enumerate(items):
-                    is_last = (idx == len(items) - 1)
-                    connector = "└── " if is_last else "├── "
-                    lines.append(f"{prefix}{connector}{name}")
-                    if subtree is not None:
-                        new_prefix = prefix + ("    " if is_last else "│   ")
-                        render(subtree, new_prefix)
-
-            render(tree)
-            return "\n".join(lines)
-
-        tree_str = build_tree_ascii(collected_notes)
-
-        # Build Mermaid diagram for internal metadata
-        mermaid_lines = ["graph TD"]
-        id_map: Dict[str, str] = {}
-        for i, p in enumerate(collected_notes.keys()):
-            node_id = f"N{i}"
-            id_map[p] = node_id
-            safe_title = collected_notes[p]["title"].replace('"', "'")
-            if collected_notes[p]["depth"] == 0:
-                mermaid_lines.append(f'  {node_id}["★ {safe_title} (Root)"]')
-            else:
-                mermaid_lines.append(f'  {node_id}["{safe_title}"]')
-
-        unique_edges = set(edges)
-        for src, dst in unique_edges:
-            if src in id_map and dst in id_map:
-                mermaid_lines.append(f"  {id_map[src]} --> {id_map[dst]}")
-
-        # Assemble Markdown in exact requested format:
-        # └── Notes/
-        #     └── 0003.md (current)
-        #
-        # ## Notes/0003.md is-current
-        # Updated: 1 month ago | Depth: 0
-        # ````md
-        # ...
-        # ````
-        sorted_notes = sorted(collected_notes.values(), key=lambda x: (x["depth"], x["path"]))
-
-        md_sections: List[str] = []
-        md_sections.append(tree_str)
-        md_sections.append("")
-
-        for sn in sorted_notes:
-            is_cur_flag = " is-current" if sn.get("is_current") else ""
-            md_sections.append(f"## {sn['path']}{is_cur_flag}")
-            md_sections.append(f"Updated: {sn['updated_str']} | Depth: {sn['depth']}")
-            md_sections.append("````md")
-            md_sections.append(sn["raw_content"])
-            md_sections.append("````")
-            md_sections.append("")
-
-        full_context_text = "\n".join(md_sections).strip()
-
-        return {
-            "root_path": root_path,
-            "root_title": root_note["title"],
-            "max_depth": max_depth,
-            "total_notes": len(collected_notes),
-            "mermaid": "\n".join(mermaid_lines),
-            "tree_ascii": tree_str,
-            "context_markdown": full_context_text,
-            "notes": [
-                {"path": n["path"], "title": n["title"], "depth": n["depth"]}
-                for n in sorted_notes
-            ]
-        }
 

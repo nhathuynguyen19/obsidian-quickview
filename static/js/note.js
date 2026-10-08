@@ -6,7 +6,7 @@
 import { eventBus } from './events.js';
 import { appState } from './state.js';
 import { ApiClient } from './api.js';
-import { renderMarkdown, loadKatex } from './markdown.js';
+import { renderMarkdown, loadKatex, enhanceCodeBlocks } from './markdown.js';
 
 export class NoteViewerController {
   constructor() {
@@ -209,6 +209,7 @@ export class NoteViewerController {
     // Body
     if (this.body) {
       this.body.innerHTML = renderMarkdown(data.content, data.path);
+      enhanceCodeBlocks(this.body);
     }
 
     // Backlinks

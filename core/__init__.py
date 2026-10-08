@@ -11,6 +11,9 @@ from core.parser import (
 )
 from core.search import SearchEngine
 from core.index import VaultIndex
+from core.git_sync import GitSyncService
+from core.context import ContextBuilder
+from core.routes import handle_get_route, handle_post_route
 
 __all__ = [
     "DEFAULT_VAULT_PATH",
@@ -24,4 +27,8 @@ __all__ = [
     "extract_wikilinks",
     "SearchEngine",
     "VaultIndex",
+    "GitSyncService",
+    "ContextBuilder",
+    "handle_get_route",
+    "handle_post_route",
 ]

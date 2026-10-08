@@ -42,10 +42,26 @@ def handle_get_route(
             return 400, {"error": "Missing 'path' query parameter"}
         if not rel_path.lower().endswith(".md"):
             return 400, {"error": "Chỉ ghi chú markdown (.md) mới được mở trong view note"}
-        note = vault_index.get_note_by_path(rel_path)
+        inc_raw = query.get("include_raw", ["true"])[0].lower() not in ("false", "0")
+        note = vault_index.get_note_by_path(rel_path, include_raw=inc_raw)
         if note:
             return 200, note
         return 404, {"error": f"Note not found: {rel_path}"}
+
+    if path == "/api/note/raw":
+        rel_path = query.get("path", [""])[0]
+        if not rel_path:
+            return 400, {"error": "Missing 'path' query parameter"}
+        raw = vault_index.get_note_raw(rel_path)
+        if raw:
+            return 200, raw
+        return 404, {"error": f"Note not found: {rel_path}"}
+
+    if path == "/api/tree-level":
+        folder = query.get("folder", [""])[0]
+        if not vault_index:
+            return 200, {"children": []}
+        return 200, vault_index.get_tree_level(folder)
 
     if path == "/api/context":
         rel_path = query.get("path", [""])[0]

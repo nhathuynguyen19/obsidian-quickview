@@ -1,11 +1,11 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'scripts/cm6-entry.js'), 'utf8');
 const runtime = fs.readFileSync(path.join(root, 'static/cm6-live-preview-runtime.js'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'static/app.js'), 'utf8');
+const jsFiles = ['static/app.js', 'static/js/app.js', 'static/js/editor.js', 'static/js/markdown.js', 'static/js/api.js', 'static/js/note.js', 'static/js/sidebar.js'];
+const app = jsFiles.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
 const html = fs.readFileSync(path.join(root, 'static/index.html'), 'utf8');
 
 assert(source.includes('update.selectionSet'), 'Live Preview must react to caret/selection changes');
@@ -42,6 +42,6 @@ assert(app.includes("loadScript('/static/cm6-bundle.min.js?v=23')"), 'CM6 must l
 assert(app.includes("script.src = '/static/highlight.min.js'"), 'Highlight.js should lazy-load only when code exists');
 assert(app.includes('/api/note/raw?path='), 'Raw Markdown should load only on demand');
 assert(app.includes('/api/tree-level?folder='), 'File tree should use lazy folder API');
-assert(app.includes('editPreviewBody.replaceChildren()'), 'Hidden preview DOM should be released');
+assert(app.includes('previewBody.replaceChildren()'), 'Hidden preview DOM should be released');
 
 console.log('All editor architecture/performance guards passed.');

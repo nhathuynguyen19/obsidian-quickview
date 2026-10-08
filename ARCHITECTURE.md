@@ -1,120 +1,254 @@
-# Architecture — Obsidian QuickView
+# Kiến Trúc Hệ Thống & Bộ Quy Tắc Phát Triển (ARCHITECTURE.md)
 
-## Module map
+Tài liệu này cung cấp bản đồ kiến trúc toàn diện của **Obsidian QuickView**, đặc tả ranh giới đối tượng, phương thức và **Bộ quy tắc phát triển dành cho Lập trình viên & AI Agent** nhằm đảm bảo nguyên tắc: *khi thêm/sửa một tính năng bất kỳ, chỉ đọc và thao tác đúng các tệp liên quan, tuyệt đối không nạp các tệp không ảnh hưởng vào Context*.
 
-| Module | Responsibility | Inputs | Outputs | Depends on |
+---
+
+## 1. Triết Lý & Nguyên Tắc Kiến Trúc (Core Principles)
+
+1. **Zero External Runtime Bloat**:
+   - Backend chỉ sử dụng thư viện chuẩn của Python (`http.server`, `sqlite3`, `subprocess`, `urllib`). Không dùng framework nặng (Flask, FastAPI, Django). Bộ nhớ chiếm dụng < 20MB RAM, phản hồi sub-millisecond.
+   - Frontend sử dụng Native Web Standards (ES Modules `type="module"`, CSS Variables, vanilla DOM). Không build-step (trừ CodeMirror 6 prebundle), không cài đặt Vite/Webpack khi chạy.
+2. **High Cohesion & Loose Coupling (Gắn kết cao, Phụ thuộc lỏng)**:
+   - Mỗi file đảm nhiệm đúng một trách nhiệm duy nhất (Single Responsibility Principle) và không vượt quá 350-450 dòng mã.
+   - Các UI Component không bao giờ trực tiếp thao tác DOM của nhau; mọi tương tác liên thành phần đi qua **`EventBus`** hoặc **`AppState`**.
+3. **Unidirectional Dependency Flow (Luồng phụ thuộc một chiều)**:
+   - `UI Component` → `AppState / ApiClient` → `HTTP Endpoints` → `Domain Services` → `SQLite / FileSystem`.
+   - Tuyệt đối không có phụ thuộc vòng (no cyclic dependencies).
+
+---
+
+## 2. Sơ Đồ Cấu Trúc Thư Mục (Directory Layout)
+
+```
+obsidian-quickview/
+├── bin/
+│   └── obs-view               # Bash CLI entry point: start/stop/status daemon, open browser
+├── server.py                  # CLI Python launcher (accepts port & vault args) → core/server.py
+├── indexer.py                 # Backward-compatibility export adapter → core/
+├── core/                      # Backend Service & HTTP Layer (Python 3.12)
+│   ├── __init__.py            # Re-exports core domain interfaces
+│   ├── config.py              # Constants & default configurations
+│   ├── parser.py              # Frontmatter, tags, wikilinks, diacritics parsing
+│   ├── search.py              # SearchEngine: SQLite FTS5 search engine
+│   ├── index.py               # VaultIndex: SQLite schema, incremental scanning, note resolution
+│   ├── context.py             # ContextBuilder: BFS knowledge graph, ASCII tree, Mermaid, LLM prompt
+│   ├── git_sync.py            # GitSyncService: Git status, commit, pull, push
+│   ├── vault_manager.py       # VaultManager: Config persistence, auto-discovery, active vault
+│   ├── routes.py              # Modular HTTP route handlers (GET/POST /api/*)
+│   └── server.py              # Lightweight HTTP Server & static file streaming
+├── static/                    # Frontend Single Page Application
+│   ├── index.html             # Shell layout with semantic containers & DOM IDs
+│   ├── app.css                # Master CSS manifest (imports modular stylesheets via @import)
+│   ├── css/                   # Modular Stylesheets
+│   │   ├── variables.css      # CSS variables, color palettes, dark & light themes
+│   │   ├── base.css           # Reset, body layout, scrollbars, common buttons, modal backdrop
+│   │   ├── sidebar.css        # Left sidebar, folder tree, recent list, tags
+│   │   ├── note.css           # Note view layout, breadcrumbs, action toolbar, frontmatter, backlinks
+│   │   ├── markdown.css       # Rendered markdown typography, callouts, tables, KaTeX math
+│   │   ├── toc.css            # Right sidebar TOC outline panel, heading highlight pulse
+│   │   ├── editor.css         # CodeMirror 6 live preview, source mode, split view, stats
+│   │   ├── live-preview.css   # Live preview decoration engine styles, callouts, tables, checkboxes
+│   │   ├── search.css         # Search modal, tabs, input box, result list, keyword mark
+│   │   └── modals.css         # Vault picker modal, settings modal, hotkeys table, snippet dialog
+│   ├── js/                    # Native ES Modules
+│   │   ├── events.js          # EventEmitter & global eventBus (PubSub)
+│   │   ├── state.js           # AppState: reactive central state & navigation history
+│   │   ├── icons.js           # Reusable SVG icon templates
+│   │   ├── api.js             # ApiClient: typed HTTP wrappers for /api/*
+│   │   ├── markdown.js        # Markdown parser, KaTeX math lazy-loading & LaTeX renderer
+│   │   ├── toc.js             # TocController: Outline generator & ScrollSpy
+│   │   ├── editor.js          # EditorController: CodeMirror 6 wrapper & Live/Split/Preview modes
+│   │   ├── hotkeys.js         # HotkeysManager: Key normalization, conflict detection, snippets
+│   │   ├── search.js          # SearchModalController: Quick Switcher modal & keyboard navigation
+│   │   ├── sidebar.js         # SidebarController: Tree view, recent notes, tags
+│   │   ├── note.js            # NoteViewerController: Note loading, frontmatter, backlinks, copy actions
+│   │   ├── vault.js           # VaultModalController: Vault cards, switcher, custom path adding
+│   │   ├── settings.js        # SettingsModalController: Theme toggle, language switcher, hotkeys UI
+│   │   └── app.js             # Main bootstrap orchestrator
+│   ├── i18n.js                # I18n runtime engine (loads JSON locales)
+│   ├── locales/               # vi.json, en.json
+│   ├── cm6-bundle.min.js      # CodeMirror 6 prebundled core & extensions
+│   ├── marked.min.js          # Markdown parser library
+│   ├── highlight.min.js       # Code syntax highlighting
+│   └── katex.min.js           # LaTeX math formula rendering engine (lazy-loaded)
+└── tests/
+    ├── test_indexer.py        # Python unit tests for indexing, parser, backlinks
+    ├── test_vault_manager.py  # Python unit tests for vault config & switching
+    └── test_render_markdown.js # Node.js unit tests for Markdown, callouts, LaTeX, embeds
+```
+
+---
+
+## 3. Sơ Đồ Luồng Hoạt Động (Architecture Flow & Mermaid Diagram)
+
+```mermaid
+flowchart TD
+    subgraph UI_Layer ["Tầng Giao Diện Người Dùng (Frontend ES Modules)"]
+        HTML["index.html"] --> AppBoot["app.js (Bootstrap)"]
+        AppBoot --> EventBus["events.js (EventBus)"]
+        AppBoot --> AppState["state.js (AppState)"]
+        
+        AppBoot --> SidebarCtrl["sidebar.js (Cây thư mục & Recent)"]
+        AppBoot --> NoteCtrl["note.js (Xem ghi chú & Backlinks)"]
+        AppBoot --> EditorCtrl["editor.js (CodeMirror 6 Editor)"]
+        AppBoot --> SearchCtrl["search.js (Quick Switcher)"]
+        AppBoot --> TocCtrl["toc.js (Mục lục TOC & ScrollSpy)"]
+        AppBoot --> VaultCtrl["vault.js (Chuyển Vault)"]
+        AppBoot --> SettingsCtrl["settings.js (Cài đặt & Hotkeys)"]
+        
+        NoteCtrl --> MarkdownEngine["markdown.js (Render Markdown & KaTeX)"]
+        EditorCtrl --> MarkdownEngine
+    end
+
+    subgraph Service_Client ["Tầng Dịch Vụ Mạng"]
+        NoteCtrl --> ApiClient["api.js (ApiClient)"]
+        SearchCtrl --> ApiClient
+        SidebarCtrl --> ApiClient
+        EditorCtrl --> ApiClient
+        VaultCtrl --> ApiClient
+    end
+
+    subgraph HTTP_Backend ["Tầng Điều Phối HTTP (core/)"]
+        ApiClient -->|HTTP JSON /api/*| Server["server.py (ThreadingHTTPServer)"]
+        Server --> Routes["routes.py (API Dispatcher)"]
+    end
+
+    subgraph Domain_Services ["Tầng Nghiệp Vụ Backend (core/)"]
+        Routes --> VaultIndex["index.py (VaultIndex)"]
+        Routes --> SearchEngine["search.py (SearchEngine FTS5)"]
+        Routes --> ContextBuilder["context.py (ContextBuilder BFS)"]
+        Routes --> GitSync["git_sync.py (GitSyncService)"]
+        Routes --> VaultManager["vault_manager.py (VaultManager)"]
+        VaultIndex --> Parser["parser.py (Frontmatter & Wikilinks)"]
+    end
+
+    subgraph Storage_Layer ["Tầng Lưu Trữ"]
+        VaultIndex --> SQLite[(".obsidian_quickview.db (SQLite FTS5)")]
+        VaultIndex --> VaultDisk[("Markdown Files (.md)")]
+    end
+```
+
+---
+
+## 4. Đặc Tả Đối Tượng & Phương Thức (Object Contracts & Public APIs)
+
+### 4.1. Frontend Modules (`static/js/`)
+
+| Module / Class | Trách Nhiệm Chính | Các Phương Thức Public & Sự Kiện (Contract) |
+|---|---|---|
+| **`EventEmitter`** (`events.js`) | Hộp thư PubSub điều phối sự kiện | `on(event, handler)`, `off(event, handler)`, `emit(event, data)`, `once(event, handler)` |
+| **`AppState`** (`state.js`) | Trạng thái ứng dụng & Navigation History | `setTheme(theme)`, `setEditMode(mode)`, `setTocOpen(open)`, `setCurrentNote(note)`, `setIsEditing(bool)`, `setVaultInfo(...)`, `pushHistory(path)`, `goBack()`, `goForward()` |
+| **`ApiClient`** (`api.js`) | Giao tiếp HTTP với backend | `fetchNote(path)`, `saveNote(path, content)`, `searchNotes(q, mode, limit)`, `fetchContext(path, depth)`, `resolveTarget(target)`, `openAttachment(path)`, `fetchTree()`, `fetchTags()`, `switchVault(path)`, `syncGit()` |
+| **`MarkdownRenderer`** (`markdown.js`) | Chuyển đổi Markdown và công thức toán | `renderMarkdown(rawMd, currentNotePath, marked, katex, renderLatex)`<br>`renderLatex(latex, isBlock, katex)`<br>`loadKatex()` |
+| **`NoteViewerController`** (`note.js`) | Màn hình hiển thị Note, Breadcrumb, Backlinks | `loadNote(path, pushHistory)`<br>`renderNote(noteData)`<br>`copyMarkdown()`, `copyContext()`, `syncVault()`, `openObsidian()` |
+| **`EditorController`** (`editor.js`) | CodeMirror 6, Live Preview, Mode switching | `startEditing()`, `cancelEditing()`, `save()`<br>`setMode(mode: 'live'\|'source'\|'split'\|'preview')`<br>`insertSnippet(text)`, `updateStats(text)`, `updateLivePreview()` |
+| **`TocController`** (`toc.js`) | Mục lục tiêu đề (Outline) & ScrollSpy | `generate()`, `scheduleUpdate()`, `updateActiveItem()`, `applyState(open)` |
+| **`SearchModalController`** (`search.js`) | Quick Switcher tìm kiếm tiêu đề & nội dung | `open(query, mode: 'title'\|'content')`, `close()`, `setMode(mode)`, `search(query)` |
+| **`SidebarController`** (`sidebar.js`) | Cây thư mục, ghi chú gần đây, tags | `loadAll()`, `loadTree()`, `loadRecent()`, `loadTags()`, `addRecentNote(note)`, `toggle()` |
+| **`VaultModalController`** (`vault.js`) | Hộp thoại chọn và chuyển đổi vault | `open(isMandatory, title, desc)`, `close()`, `checkStatus()`, `switchVault(path)`, `addCustomVault()` |
+| **`SettingsModalController`** (`settings.js`) | Cài đặt theme, i18n, phím tắt & snippets | `open()`, `close()`, `setSubtab(tab)`, `renderHotkeys()`, `renderSnippets()`, `startRecording(type, id)` |
+| **`HotkeysManager`** (`hotkeys.js`) | Chuẩn hóa phím tắt, phát hiện xung đột | `normalizeKeyComboFromEvent(e)`, `findHotkeyConflict(combo, type, id)`, `registerActionHandler(id, fn)` |
+
+### 4.2. Backend Modules (`core/`)
+
+| Module / Class | Trách Nhiệm Chính | Các Phương Thức Public & Chữ Ký Hàm |
+|---|---|---|
+| **`VaultIndex`** (`core/index.py`) | Quản lý schema SQLite, quét file & index | `update_index(force: bool = False) -> Dict[str, int]`<br>`get_note_by_path(rel_path: str) -> Optional[Dict]`<br>`resolve_target(target_title: str) -> Optional[str]`<br>`get_tree() -> Dict`<br>`get_tags() -> List[Dict]`<br>`get_note_context(path, depth) -> Dict` |
+| **`ContextBuilder`** (`core/context.py`) | Thu thập đồ thị tri thức đa tầng cho LLM | `build_context(vault_index, root_path: str, max_depth: int = 1) -> Optional[Dict]`<br>`build_tree_ascii(notes_dict) -> str`<br>`format_relative_time(mtime: float) -> str` |
+| **`GitSyncService`** (`core/git_sync.py`) | Đồng bộ Git (commit, pull, push an toàn) | `sync_vault(vault_path: str) -> Dict[str, Any]`<br>`is_git_repo(vault_path: str) -> bool` |
+| **`SearchEngine`** (`core/search.py`) | Thuật toán tìm kiếm SQLite FTS5 | `search(query: str, mode: str, limit: int) -> List[Dict]`<br>`search_title(query: str, limit: int)`<br>`search_content(query: str, limit: int)` |
+| **`VaultManager`** (`core/vault_manager.py`) | Quản lý cấu hình & phát hiện vaults | `load_vault_config() -> Dict`<br>`save_vault_config(...)`<br>`get_all_vaults(active_path) -> List[Dict]`<br>`get_active_vault_path() -> Tuple[str, bool, bool]`<br>`get_vault_db_path(vault_path) -> str` |
+| **`Routes`** (`core/routes.py`) | Điều phối các HTTP API Endpoints | `handle_get_route(path, query, vault_index) -> Tuple[int, Dict]`<br>`handle_post_route(path, body, vault_index, on_switch) -> Tuple[int, Dict]` |
+| **`Server`** (`core/server.py`) | Khởi chạy server & stream static/vault file | `run_server(vault_path, port, host)`<br>`ObsidianViewHandler` (kế thừa `BaseHTTPRequestHandler`) |
+
+---
+
+## 5. Bảng Tra Cứu Tính Năng → Tệp (Feature-to-File Matrix)
+
+> [!IMPORTANT]
+> **Quy tắc bắt buộc đối với Lập trình viên & AI Agent:**
+> Khi nhận yêu cầu sửa lỗi hoặc phát triển một tính năng thuộc cột **"Tính Năng / Nhiệm Vụ"**, bạn **CHỈ ĐƯỢC PHÉP ĐỌC VÀ SỬA** các tệp nằm trong cột **"Tệp Cho Phép Đọc & Sửa"**. Tuyệt đối không đọc các tệp trong cột **"Tệp CẤM Đọc/Sửa"** để bảo vệ context window và ngăn ngừa lỗi lan truyền.
+
+| Tính Năng / Nhiệm Vụ | Tệp Cho Phép Đọc & Sửa | DOM Elements / Classes Liên Quan | Backend File (Nếu có) | Tệp CẤM Đọc/Sửa (Out of Scope) |
 |---|---|---|---|---|
-| `bin/obs-view` | CLI launcher, server process management, browser open | CLI args | starts/stops server | `server.py` |
-| `server.py` | HTTP server, all API routes | HTTP requests | JSON responses | `core/*` |
-| `core/config.py` | Constants only (paths, port, ignore dirs) | — | constants | — |
-| `core/parser.py` | Markdown parsing: frontmatter, tags, wikilinks, diacritics | raw markdown text | structured data (dict, list) | — |
-| `core/search.py` | FTS5 search engine (title/content/tag/all modes) | query string + mode | ranked results with snippets | `core/parser.py` (remove_diacritics) |
-| `core/index.py` | SQLite schema, incremental indexing, backlinks, tree, tags, context, resolve | vault path + db path | search/note/tree/tags/context data | `core/parser.py`, `core/search.py` |
-| `core/vault_manager.py` | Vault discovery, config persistence, vault switching | vault paths | vault list / config dict | `core/config.py` |
-| `static/app.js` | UI orchestration, lazy assets, sanitized Markdown render, editor lifecycle, lazy tree, search, theme, TOC | user events → API calls | DOM updates | server API (HTTP) |
-| `static/app.css` | Dark/light themes, callouts, layout, responsive | — | visual style | — |
-| `static/index.html` | Minimal SPA shell; does not eagerly load CM6/highlight.js | — | DOM structure | `app.js`, `app.css` |
-| `scripts/cm6-entry.js` | Source of CM6 selection-aware Live Preview and clean EditorState lifecycle | Markdown document | editor extensions | CodeMirror 6 / Lezer |
-| `static/cm6-live-preview-runtime.js` | Compatibility runtime for the checked-in prebuilt CM6 bundle | prebuilt CM6 internals | optimized editor API | `cm6-bundle.min.js` |
-| `tests/` | Unit tests for indexer, vault manager, markdown render | — | pass/fail | respective modules |
+| **1. Tìm kiếm nhanh (Quick Switcher Search)** | `static/js/search.js`<br>`static/css/search.css` | `#search-modal-backdrop`<br>`#search-input`<br>`#search-results`<br>`.search-mode-tab` | `core/search.py`<br>`core/routes.py` (chỉ hàm `handle_api_search`) | `static/js/editor.js`<br>`static/js/markdown.js`<br>`core/git_sync.py`<br>`core/context.py` |
+| **2. Trình soạn thảo (CodeMirror 6, Live Preview, Split View, Stats)** | `static/js/editor.js`<br>`static/css/editor.css`<br>`static/css/live-preview.css` | `#edit-container`<br>`#cm-editor-mount`<br>`#edit-preview-body`<br>`.btn-mode-tab`<br>`#edit-stats` | `core/routes.py` (chỉ hàm `handle_api_save`) | `static/js/search.js`<br>`static/js/vault.js`<br>`core/git_sync.py`<br>`core/context.py` |
+| **3. Render Markdown, KaTeX & Công thức toán** | `static/js/markdown.js`<br>`static/css/markdown.css`<br>`tests/test_render_markdown.js` | `.markdown-body`<br>`.math-block`<br>`.math-inline`<br>`.callout`<br>`.wikilink` | `core/parser.py` | `static/js/vault.js`<br>`static/js/settings.js`<br>`core/git_sync.py`<br>`core/server.py` |
+| **4. Mục lục Outline (TOC) & ScrollSpy** | `static/js/toc.js`<br>`static/css/toc.css` | `#sidebar-right`<br>`#toc-list`<br>`#toc-count-badge`<br>`.toc-item`<br>`.heading-highlight` | *Không liên quan backend* | `core/*`<br>`static/js/vault.js`<br>`static/js/search.js` |
+| **5. Cây thư mục (Tree), Ghi chú gần đây, Tags** | `static/js/sidebar.js`<br>`static/css/sidebar.css` | `#sidebar`<br>`#pane-tree`<br>`#pane-recent`<br>`#pane-tags`<br>`.file-item`<br>`.recent-item` | `core/index.py` (hàm `get_tree`, `get_tags`) | `static/js/editor.js`<br>`static/js/markdown.js`<br>`core/git_sync.py` |
+| **6. Giao diện xem ghi chú (Breadcrumbs, Frontmatter, Backlinks)** | `static/js/note.js`<br>`static/css/note.css` | `#note-container`<br>`#note-breadcrumb`<br>`#note-frontmatter`<br>`#note-backlinks`<br>`.btn-copy-link` | `core/routes.py` (hàm `handle_api_note`)<br>`core/index.py` | `static/js/settings.js`<br>`static/js/vault.js`<br>`core/git_sync.py` |
+| **7. Quản lý & Chuyển đổi Vault (Vault Switcher)** | `static/js/vault.js`<br>`static/css/modals.css` (khối vault) | `#vault-modal-backdrop`<br>`#vault-items-list`<br>`#btn-vault-switcher`<br>`.vault-card` | `core/vault_manager.py`<br>`core/routes.py` (hàm `handle_api_vaults`) | `static/js/markdown.js`<br>`static/js/editor.js`<br>`core/context.py`<br>`core/git_sync.py` |
+| **8. Cài đặt Giao diện, Ngôn ngữ, Hotkeys & Snippets** | `static/js/settings.js`<br>`static/js/hotkeys.js`<br>`static/css/modals.css` (khối settings) | `#settings-modal-backdrop`<br>`.settings-lang-card`<br>`#hotkeys-buttons-list`<br>`#snippet-dialog-backdrop` | *Lưu trữ trên localStorage* | `core/*`<br>`static/js/markdown.js`<br>`static/js/editor.js` |
+| **9. Tổng hợp Knowledge Context cho LLM** | `static/js/note.js` (nút Copy Context)<br>`core/context.py` | `#btn-copy-context`<br>`#context-dropdown-menu` | `core/context.py`<br>`core/routes.py` (hàm `handle_api_context`) | `static/js/editor.js`<br>`static/js/vault.js`<br>`core/git_sync.py` |
+| **10. Đồng bộ Git Vault (Git Sync)** | `static/js/note.js` (nút Sync Vault)<br>`core/git_sync.py` | `#btn-sync-vault` | `core/git_sync.py`<br>`core/routes.py` (hàm `handle_api_git_sync`) | `static/js/markdown.js`<br>`static/js/toc.js`<br>`core/search.py`<br>`core/context.py` |
 
-## Dependency rules
+---
 
-```
-static/app.js ──HTTP──▶ server.py ──▶ core/index.py ──▶ core/parser.py
-                                       │
-                                  core/search.py ──▶ core/parser.py
-                                       │
-                                  core/vault_manager.py ──▶ core/config.py
-                                       │
-                                  core/index.py ──▶ core/config.py
-```
+## 6. Bộ Quy Tắc Phát Triển Cho Agent & Người Phát Triển (Agent Rules & Protocol)
 
-- **UI never imports core directly** — talks via HTTP API only
-- **core/config.py** has zero dependencies (底层 foundation)
-- **core/parser.py** has zero core dependencies (pure parsing)
-- **core/search.py** depends only on parser (for diacritics removal)
-- **core/index.py** depends on parser + search
-- **core/vault_manager.py** depends only on config
-- **server.py** imports all core modules (composition root)
+### Quy tắc 1: Phạm vi Tính năng Tối thiểu (Bounded Feature Scope)
+- Khi bắt đầu một task (thêm tính năng hoặc fix bug), bắt buộc phải tra cứu bảng **Feature-to-File Matrix** ở Mục 5.
+- Chỉ mở đúng các tệp trong cột **Tệp Cho Phép Đọc & Sửa**. Tuyệt đối không dùng lệnh `grep` hay `find` quét lung tung ngoài phạm vi khi không cần thiết.
 
-## Public interfaces
+### Quy tắc 2: Giới hạn Kích thước Tệp & Trách nhiệm (Size & Responsibility Cap)
+- Mỗi tệp `.js`, `.css`, `.py` không được vượt quá **400 dòng mã**.
+- Nếu một tính năng mới làm một file vượt quá 400 dòng, lập tức tách thành sub-module chuyên biệt và liên kết qua `import` / `export`.
 
-### core/parser.py
-```python
-remove_diacritics(s: str) -> str
-extract_frontmatter_and_content(raw: str) -> tuple[dict, str]
-extract_tags(frontmatter: dict, content: str) -> list[str]
-extract_wikilinks(content: str) -> list[dict]
-```
+### Quy tắc 3: Cấm Thọc Trực Tiếp Vào DOM Của Component Khác (Zero Cross-DOM Mutation)
+- Không component nào được phép can thiệp trực tiếp vào phần tử DOM nội bộ của component khác (ví dụ: `editor.js` không được tự ý sửa DOM của `#toc-list` hay `#tree-container`).
+- Giao tiếp giữa các component bắt buộc phải đi qua **`eventBus.emit('event:name', data)`** hoặc cập nhật trạng thái trong **`appState`**.
 
-### core/search.py
-```python
-search(query: str, mode: str, limit: int) -> list[dict]
-# mode: 'title' | 'content' | 'all'
-# returns: [{path, title, folder, mtime, size, tags, snippet_content}]
-```
+### Quy tắc 4: Bảo Toàn Tương Thích Ngược (Zero Breaking Changes)
+- Mọi API route (`/api/*`) phải giữ nguyên hợp đồng JSON trả về.
+- `bin/obs-view`, root `server.py`, và root `indexer.py` phải luôn hoạt động bình thường mà không cần thay đổi cách gọi lệnh.
 
-### core/index.py
-```python
-update_index(force: bool = False) -> dict
-search(query, mode, limit) -> list[dict]
-get_note_by_path(path: str, include_raw: bool = True) -> dict | None
-get_note_raw(path: str) -> dict | None
-get_tree_level(folder: str = "") -> dict
-get_note_context(path: str, max_depth: int) -> dict | None
-resolve_target(title: str) -> str | None
-get_tree() -> dict
-get_tags() -> list[dict]
-```
+### Quy tắc 5: Khuôn Mẫu Prompt Chuẩn Khi Giao Việc Cho Agent (Agent Prompt Protocol)
+Khi bạn hoặc người khác yêu cầu AI Agent (Claude Code, Gemini, Antigravity, Cursor, v.v.) thực hiện nhiệm vụ, hãy sao chép mẫu prompt chuẩn sau:
 
-### core/vault_manager.py
-```python
-load_vault_config() -> dict
-save_vault_config(default_vault, custom_vaults, first_run_completed) -> dict
-get_all_vaults(current_vault) -> list[dict]
-get_active_vault_path() -> tuple[str, bool, bool]
-get_vault_db_path(vault_path: str) -> str
-```
+````markdown
+[TASK]: <Mô tả chức năng cần thêm hoặc sửa>
+[FEATURE_SCOPE]: <Chọn 1 trong 10 tính năng trong bảng Feature-to-File Matrix>
+[ALLOWED_FILES]: 
+- <Danh sách tệp theo bảng Feature-to-File Matrix>
+[EXCLUDED_FILES]:
+- <Danh sách tệp bị cấm theo bảng Feature-to-File Matrix>
+[RULE]: Chỉ đọc và sửa các tệp trong [ALLOWED_FILES]. Tuân thủ nguyên tắc EventBus và AppState trong ARCHITECTURE.md.
+````
 
-### server.py API
-```
-GET  /api/search?q=&mode=title|content|all&limit=
-GET  /api/note?path=              # reading payload, no duplicate raw source
-GET  /api/note/raw?path=          # raw Markdown on demand
-GET  /api/context?path=&depth=
-GET  /api/resolve?target=
-GET  /api/open-file?path=
-GET  /api/tree-level?folder=      # lazy tree used by UI
-GET  /api/tree                    # compatibility/full-tree endpoint
-GET  /api/tags
-GET  /api/reindex?force=1
-GET  /api/info
-GET  /api/vaults
-POST /api/vaults/switch  {path, set_default}
-POST /api/vaults/add     {path}
-POST /api/save           {path, content}
-POST /api/git-sync
-```
+**Ví dụ thực tế**:
+````markdown
+[TASK]: Sửa lỗi highlight từ khóa khi tìm kiếm ghi chú bằng FTS5
+[FEATURE_SCOPE]: 1. Tìm kiếm nhanh (Quick Switcher Search)
+[ALLOWED_FILES]:
+- static/js/search.js
+- static/css/search.css
+- core/search.py
+- core/routes.py
+[EXCLUDED_FILES]:
+- static/js/editor.js, static/js/markdown.js, core/git_sync.py, core/context.py
+[RULE]: Chỉ đọc và sửa các tệp trong [ALLOWED_FILES]. Không thay đổi cấu trúc của các module khác.
+````
 
-## Where to look for common tasks
+### Quy tắc 6: Tiêu Chuẩn Hoàn Thành Bắt Buộc (Definition of Done - DoD for Agents)
+Mọi AI Agent hoặc lập trình viên khi thêm tính năng mới hoặc chỉnh sửa cấu trúc **BẮT BUỘC** phải tuân thủ checklist sau trước khi kết thúc task:
 
-| Task | Read these files only |
-|---|---|
-| Fix search results | `core/search.py`, `core/index.py` |
-| Add new API endpoint | `server.py` + relevant `core/*.py` |
-| Change UI layout | `static/app.css`, `static/index.html` |
-| Add editor feature | `scripts/cm6-entry.js`, `static/app.js` (edit lifecycle) |
-| Change vault config | `core/vault_manager.py`, `core/config.py` |
-| Fix markdown rendering | `core/parser.py`, `static/app.js` (render section) |
-| Add new syntax support | `core/parser.py` + `static/app.js` + `static/app.css` |
-| Fix indexing bug | `core/index.py`, `core/parser.py` |
+1. **Phân rã module (< 450 dòng)**:
+   - File mới phải được đặt đúng thư mục (`core/`, `static/js/`, `static/css/`).
+   - Không được nhồi nhét tính năng mới vào các file đã lớn.
+2. **Đăng ký liên kết**:
+   - CSS: Khai báo `@import 'css/<file>.css';` trong `static/app.css`.
+   - JS: Khai báo `import` trong `static/js/app.js` hoặc module cha tương ứng.
+   - Python: Đăng ký endpoint trong `core/routes.py` nếu có API mới.
+3. **Cập nhật `ARCHITECTURE.md`**:
+   - Thêm node/luồng vào sơ đồ Mermaid (Mục 3).
+   - Thêm dòng vào Bảng Trách nhiệm Module (Mục 4).
+   - Thêm tính năng và danh sách tệp vào bảng **Feature-to-File Matrix** (Mục 5).
+4. **Chạy kiểm tra tự động**:
+   - Chạy lệnh: `pnpm test:arch` (hoặc `python3 scripts/check_architecture.py`).
+   - Lệnh kiểm tra này tự động xác minh:
+     - 100% tệp trong `core/`, `static/js/`, `static/css/` đều phải xuất hiện trong `ARCHITECTURE.md`.
+     - Không tệp nào vượt quá giới hạn dòng quy định.
+   - Chạy toàn bộ test: `pnpm test`.
+   - **Nhiệm vụ chỉ được coi là hoàn thành (DONE) khi `pnpm test` đạt 100% PASSED.**
 
-## Notes
-
-- `server.py` at root is the entry point (accepts port arg); actual logic lives in `core/server.py`
-- `indexer.py` at root is legacy — logic moved to `core/index.py`
-- CodeMirror 6 source is `scripts/cm6-entry.js`; `scripts/build-cm6.js` rebuilds `static/cm6-bundle.min.js`. The checked-in bundle exposes a small compatibility surface consumed by `static/cm6-live-preview-runtime.js`; after a local rebuild the source implementation works directly.
-- CM6 and Highlight.js are loaded only when needed. KaTeX remains lazy-loaded.
-- Reading and raw-edit note payloads are intentionally separate to avoid holding two copies of every open note.
-- Tests: `tests/test_indexer.py`, `tests/test_vault_manager.py`, `tests/test_render_markdown.js`

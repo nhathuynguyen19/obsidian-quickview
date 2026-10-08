@@ -1,14 +1,14 @@
 {
   "name": "obsidian-quickview",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "description": "Blazing fast, lightweight viewer and editor for Obsidian vaults",
   "scripts": {
     "build:cm6": "node scripts/build-cm6.js",
     "test:markdown": "node tests/test_render_markdown.js",
     "test:editor": "node tests/test_editor_architecture.js",
     "test:live-editor": "node tests/test_live_editor.js",
-    "test:browser": "node tests/test_browser_clicks.js",
-    "test": "node tests/test_render_markdown.js && node tests/test_editor_architecture.js && node tests/test_live_editor.js && node tests/test_browser_clicks.js"
+    "test:arch": "python3 scripts/check_architecture.py",
+    "test": "node tests/test_render_markdown.js && node tests/test_editor_architecture.js && node tests/test_live_editor.js && python3 -m unittest discover tests && python3 scripts/check_architecture.py"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.8.0",
