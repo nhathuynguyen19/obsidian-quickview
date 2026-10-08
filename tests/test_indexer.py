@@ -120,6 +120,58 @@ Hello world
         self.assertEqual(res_prefix[0]["title"], "Ghi chú số 2")
         self.assertIn("<mark>FTS</mark>5", res_prefix[0]["snippet_content"])
 
+
+    def test_note_path_traversal_is_rejected(self):
+        outside = os.path.join(self.test_dir, "outside.md")
+        with open(outside, "w", encoding="utf-8") as f:
+            f.write("secret")
+        idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
+        idx.update_index()
+        self.assertIsNone(idx.get_note_by_path("../outside.md"))
+        self.assertIsNone(idx.get_note_raw("../outside.md"))
+
+    def test_read_payload_can_omit_raw_markdown(self):
+        idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
+        idx.update_index()
+
+        reading = idx.get_note_by_path("Note 1.md", include_raw=False)
+        self.assertIsNotNone(reading)
+        self.assertIn("content", reading)
+        self.assertNotIn("raw_content", reading)
+
+        raw = idx.get_note_raw("Note 1.md")
+        self.assertIsNotNone(raw)
+        self.assertIn("# Tiêu đề ghi chú 1", raw["raw_content"])
+
+    def test_lazy_tree_level(self):
+        nested_dir = os.path.join(self.vault_dir, "Courses", "CS")
+        os.makedirs(nested_dir, exist_ok=True)
+        with open(os.path.join(nested_dir, "Algorithms.md"), "w", encoding="utf-8") as f:
+            f.write("# Algorithms\n")
+        with open(os.path.join(self.vault_dir, "Courses", "Overview.md"), "w", encoding="utf-8") as f:
+            f.write("# Overview\n")
+
+        idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
+        idx.update_index()
+
+        root = idx.get_tree_level("")
+        root_names = {(item["type"], item["name"]) for item in root["children"]}
+        self.assertIn(("folder", "Courses"), root_names)
+        self.assertIn(("file", "Note 1"), root_names)
+
+        courses = idx.get_tree_level("Courses")
+        course_names = {(item["type"], item["name"]) for item in courses["children"]}
+        self.assertIn(("folder", "CS"), course_names)
+        self.assertIn(("file", "Overview"), course_names)
+
+    def test_title_norm_is_indexed(self):
+        idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
+        idx.update_index()
+        with idx._get_connection() as conn:
+            row = conn.execute("SELECT title_norm FROM notes WHERE path = ?", ("Ghi chú số 2.md",)).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["title_norm"], "ghi chu so 2")
+
     def test_backlinks(self):
         idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
         idx.update_index()

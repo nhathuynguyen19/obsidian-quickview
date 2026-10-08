@@ -98,19 +98,28 @@ class SearchEngine:
         except Exception:
             pass
 
-        # Step 2: Fallback / substring check (e.g. for sub-words or accent-free match)
+        # Step 2: Accent-insensitive substring fallback inside SQLite.
+        # Avoid SELECT-all + Python normalization, which caused linear RAM spikes on
+        # very large vaults. title_norm is maintained by VaultIndex.
         if len(candidates) < limit * 2:
-            cursor.execute("SELECT path, title, folder, mtime, size, tags, '' as snippet_content FROM notes")
+            clauses = ["title_norm LIKE ?" for _ in tokens_norm]
+            params = [f"%{tok}%" for tok in tokens_norm]
+            params.append(limit * 3)
+            cursor.execute(
+                f"""
+                SELECT path, title, folder, mtime, size, tags, '' as snippet_content
+                FROM notes
+                WHERE {' AND '.join(clauses)}
+                ORDER BY mtime DESC
+                LIMIT ?
+                """,
+                params,
+            )
             for r in cursor.fetchall():
-                p = r["path"]
-                if p not in seen:
-                    d = dict(r)
-                    t_norm = remove_diacritics(d["title"]).lower()
-                    if all(tok in t_norm for tok in tokens_norm):
-                        seen.add(p)
-                        candidates.append(d)
-                        if len(candidates) >= limit * 3:
-                            break
+                d = dict(r)
+                if d["path"] not in seen:
+                    seen.add(d["path"])
+                    candidates.append(d)
 
         conn.close()
 

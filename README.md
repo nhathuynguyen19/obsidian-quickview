@@ -38,10 +38,19 @@ Obsidian QuickView **does not replace Obsidian**. Use it for:
 - `all` mode: merges title + content results
 
 ### CodeMirror 6 — 4 Edit Modes
-- **Live**: edit + preview together
+- **Live**: Obsidian-style selection-aware preview — headings/emphasis/links/tasks/images render in place; Markdown syntax reappears on the active line
 - **Source**: raw Markdown only
 - **Split**: side-by-side source & preview
 - **Preview**: read-only rendered view
+
+### Low-memory architecture
+- Reading mode loads parsed note content only; raw Markdown is fetched **on demand** for Edit/Copy
+- CodeMirror 6 and Highlight.js are **lazy-loaded**, so read-only startup does not parse editor/highlighter bundles
+- File tree loads **one folder level at a time** instead of building the whole vault DOM
+- Large reading DOM is released while editing and rebuilt when returning to Reading View
+- Split preview uses **adaptive debounce** for large notes
+- Attachments are streamed in 64KB chunks with HTTP Range support instead of being read fully into Python RAM
+- Title substring fallback stays inside SQLite using a normalized-title column (no whole-table Python materialization)
 
 ### Vault Management
 - Switch vault without restart
@@ -74,7 +83,7 @@ obs-view --reindex
 
 ## Tech Stack
 
-Python 3.12 Standard Library + SQLite FTS5 + CodeMirror 6 + KaTeX — zero external dependencies, fully offline.
+Python Standard Library + SQLite FTS5 + CodeMirror 6 + KaTeX — no runtime package-manager dependency and fully offline. npm packages are needed only when rebuilding the prebundled CodeMirror asset.
 
 ## License
 
