@@ -29,8 +29,26 @@ global.marked.use({
 });
 global.marked.setOptions({ gfm: true, breaks: true });
 
-// Directly import modular render functions
-const { renderMarkdown, renderLatex } = require('../static/js/markdown.js');
+// Load renderMarkdown logic from app.js
+const appJsContent = fs.readFileSync(path.join(__dirname, '../static/app.js'), 'utf8');
+
+// Extract renderLatex and renderMarkdown functions
+const renderLatexMatch = appJsContent.match(/function renderLatex[\s\S]*?\n  \}/);
+const renderMarkdownMatch = appJsContent.match(/function renderMarkdown[\s\S]*?\n  \}/);
+
+if (!renderLatexMatch || !renderMarkdownMatch) {
+  throw new Error('Could not extract renderLatex or renderMarkdown from app.js');
+}
+
+const renderLatex = new Function('latex', 'isBlock', 'katex', `
+  ${renderLatexMatch[0]}
+  return renderLatex(latex, isBlock);
+`).bind(null);
+
+const renderMarkdown = new Function('rawMd', 'currentNotePath', 'marked', 'katex', 'renderLatex', `
+  ${renderMarkdownMatch[0]}
+  return renderMarkdown(rawMd, currentNotePath);
+`).bind(null);
 
 function runTests() {
   console.log('Running LaTeX and Markdown rendering tests...');
@@ -199,7 +217,25 @@ echo "$VAR"
     console.log('✔ Test 15: Internal heading anchor preserved passed');
   }
 
-  console.log('\nAll 15 tests passed successfully! 🎉');
+  // Test 16: Obsidian highlight must never transform content inside inline code
+  {
+    const md = '==Highlight== và `==literal==`.';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('<mark class="obs-highlight">Highlight</mark>'), 'Test 16 Failed: highlight syntax not rendered');
+    assert(html.includes('<code>==literal==</code>'), 'Test 16 Failed: highlight syntax inside inline code was transformed');
+    console.log('✔ Test 16: Highlight/code protection passed');
+  }
+
+  // Test 17: Reading dialect must accept the compact table alignment used by Live Preview
+  {
+    const md = '| Left | Center | Right |\n| :-- | :---: | --: |\n| A | B | C |';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('<table>'), 'Test 17 Failed: compact-alignment table did not render');
+    assert(html.includes('align="center"') || html.includes('text-align:center') || html.includes('<th align="center">'), 'Test 17 Failed: center alignment missing');
+    console.log('✔ Test 17: Compact table separator dialect passed');
+  }
+
+  console.log('\nAll 17 tests passed successfully! 🎉');
 }
 
 runTests();

@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Obsidian QuickView</title>
   <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
-  <link rel="stylesheet" href="/static/github-dark.min.css">
-  <link rel="stylesheet" href="/static/app.css?v=22">
+  <link rel="stylesheet" href="/static/app.css?v=24">
 </head>
 <body>
   <!-- Sidebar -->
@@ -144,9 +143,9 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           <span class="btn-text" data-i18n="nav.copyMd">Copy MD</span>
         </button>
-        <button id="btn-quick-edit" class="btn" title="Sửa nhanh ghi chú này" data-i18n-title="nav.quickEditTooltip" style="display: none;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-          <span class="btn-text" data-i18n="nav.quickEdit">Sửa nhanh</span>
+        <button id="btn-view-toggle" class="btn btn-icon" title="Chuyển sang chế độ Sửa (Ctrl + E)" aria-label="Chuyển sang chế độ Sửa" style="display: none;">
+          <svg class="view-toggle-icon icon-edit" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          <svg class="view-toggle-icon icon-read" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
         </button>
         <button id="btn-open-obsidian" class="btn btn-primary" title="Mở ghi chú này bằng Obsidian Desktop (Alt + O)" data-i18n-title="nav.openObsidianTooltip" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -223,49 +222,19 @@
         </div>
       </div>
 
-      <!-- Quick Edit Panel with CodeMirror 6 & Live Preview -->
+      <!-- Live Edit View: CodeMirror is loaded only after switching from Reading View -->
       <div id="edit-container" style="display: none;">
-        <div class="edit-toolbar">
-          <div class="edit-toolbar-left">
-            <span class="edit-title" data-i18n="editor.title">Sửa nhanh (Ctrl+S: Lưu | Esc: Hủy)</span>
-            <!-- Mode Switcher Tabs: Live Preview vs Source Mode vs Split vs Preview Only -->
-            <div class="edit-mode-selector">
-              <button type="button" class="btn-mode-tab active" id="btn-mode-live" title="Chế độ Live Preview (Hiệu ứng trực quan trực tiếp khi gõ)" data-i18n-title="editor.modeLiveTooltip">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                <span data-i18n="editor.modeLive">Live Preview</span>
-              </button>
-              <button type="button" class="btn-mode-tab" id="btn-mode-source" title="Chế độ mã nguồn thuần (Raw Source Mode)" data-i18n-title="editor.modeSourceTooltip">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-                <span data-i18n="editor.modeSource">Source</span>
-              </button>
-              <button type="button" class="btn-mode-tab" id="btn-mode-split" title="Chế độ song song (Split: Editor & Preview)" data-i18n-title="editor.modeSplitTooltip">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
-                <span data-i18n="editor.modeSplit">Song song (Split)</span>
-              </button>
-              <button type="button" class="btn-mode-tab" id="btn-mode-preview" title="Xem trước kết quả (Preview Only)" data-i18n-title="editor.modePreviewTooltip">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                <span data-i18n="editor.modePreview">Xem trước</span>
-              </button>
-            </div>
-          </div>
-          <div class="edit-toolbar-right">
-            <span class="edit-stats" id="edit-stats">0 từ | 0 dòng</span>
-            <button id="btn-cancel-edit" class="btn" title="Hủy chỉnh sửa (Esc)" data-i18n-title="editor.cancelTooltip" data-i18n="editor.cancel">Hủy</button>
-            <button id="btn-save-edit" class="btn btn-primary" title="Lưu ghi chú (Ctrl+S)" data-i18n-title="editor.saveTooltip" data-i18n="editor.save">💾 Lưu ghi chú</button>
-          </div>
+        <div class="edit-status-row">
+          <span class="edit-stats" id="edit-stats">0 từ | 0 dòng</span>
+          <span id="edit-save-status" class="edit-save-status" role="status" aria-live="polite"></span>
         </div>
-
-        <div class="edit-content-wrapper" id="edit-content-wrapper">
-          <!-- Left: CodeMirror 6 Editor Pane -->
+        <div class="edit-content-wrapper edit-mode-live" id="edit-content-wrapper">
           <div class="paper-sheet edit-paper-sheet" id="edit-source-pane">
             <div id="cm-editor-mount"></div>
           </div>
-
-          <!-- Right: Live Preview Pane -->
-          <div class="paper-sheet edit-paper-sheet" id="edit-preview-pane" style="display: none;">
-            <article id="edit-preview-body" class="markdown-body"></article>
-          </div>
         </div>
+        <button id="btn-save-edit" type="button" hidden aria-hidden="true" tabindex="-1"></button>
+        <button id="btn-cancel-edit" type="button" hidden aria-hidden="true" tabindex="-1"></button>
       </div>
     </div>
   </main>
@@ -413,137 +382,47 @@
           </svg>
           <div>
             <h2 id="settings-modal-title" data-i18n="settings.modalTitle">Cài đặt (Settings)</h2>
-            <p id="settings-modal-desc" data-i18n="settings.modalDesc">Tùy chỉnh cấu hình, ngôn ngữ và phím tắt</p>
+            <p id="settings-modal-desc" data-i18n="settings.modalDesc">Tùy chỉnh cấu hình Obsidian QuickView</p>
           </div>
         </div>
         <button id="btn-close-settings-modal" class="btn btn-icon" title="Đóng (Esc)" data-i18n-title="search.keyGuideClose">✕</button>
       </div>
 
-      <!-- Navigation Tabs in Settings Modal -->
-      <div class="settings-nav-tabs">
-        <button type="button" class="settings-nav-tab active" data-tab="language" id="settings-tab-btn-language">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-          <span data-i18n="settings.tabLanguage">Ngôn ngữ</span>
-        </button>
-        <button type="button" class="settings-nav-tab" data-tab="hotkeys" id="settings-tab-btn-hotkeys">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="6" y1="8" x2="6" y2="8"></line><line x1="10" y1="8" x2="10" y2="8"></line><line x1="14" y1="8" x2="14" y2="8"></line><line x1="18" y1="8" x2="18" y2="8"></line><line x1="6" y1="12" x2="6" y2="12"></line><line x1="10" y1="12" x2="10" y2="12"></line><line x1="14" y1="12" x2="14" y2="12"></line><line x1="18" y1="12" x2="18" y2="12"></line><line x1="8" y1="16" x2="16" y2="16"></line></svg>
-          <span data-i18n="settings.tabHotkeys">Phím tắt</span>
-        </button>
-      </div>
-
       <div class="settings-modal-body">
-        <!-- Tab Pane 1: Language -->
-        <div class="settings-tab-pane active" id="settings-pane-language">
-          <div class="settings-section">
-            <div class="settings-section-header">
-              <div class="settings-section-info">
-                <span class="settings-section-title" data-i18n="settings.sectionLanguage">Ngôn ngữ hệ thống (Language)</span>
-                <span class="settings-section-desc" data-i18n="settings.sectionLanguageDesc">Chọn ngôn ngữ hiển thị cho giao diện Obsidian QuickView</span>
+        <!-- Setting Item: Language -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <div class="settings-section-info">
+              <span class="settings-section-title" data-i18n="settings.sectionLanguage">Ngôn ngữ hệ thống (Language)</span>
+              <span class="settings-section-desc" data-i18n="settings.sectionLanguageDesc">Chọn ngôn ngữ hiển thị cho giao diện Obsidian QuickView</span>
+            </div>
+          </div>
+          <div class="settings-lang-options" id="settings-lang-options">
+            <label class="settings-lang-card" data-lang="vi">
+              <input type="radio" name="setting-language" value="vi" class="settings-lang-radio">
+              <div class="settings-lang-indicator"></div>
+              <div class="settings-lang-text">
+                <span class="settings-lang-name">🇻🇳 Tiếng Việt</span>
+                <span class="settings-lang-sub" data-i18n="settings.langViDesc">Giao diện Tiếng Việt</span>
               </div>
-            </div>
-            <div class="settings-lang-options" id="settings-lang-options">
-              <label class="settings-lang-card" data-lang="vi">
-                <input type="radio" name="setting-language" value="vi" class="settings-lang-radio">
-                <div class="settings-lang-indicator"></div>
-                <div class="settings-lang-text">
-                  <span class="settings-lang-name">🇻🇳 Tiếng Việt</span>
-                  <span class="settings-lang-sub" data-i18n="settings.langViDesc">Giao diện Tiếng Việt</span>
-                </div>
-              </label>
-              <label class="settings-lang-card" data-lang="en">
-                <input type="radio" name="setting-language" value="en" class="settings-lang-radio">
-                <div class="settings-lang-indicator"></div>
-                <div class="settings-lang-text">
-                  <span class="settings-lang-name">🇬🇧 English</span>
-                  <span class="settings-lang-sub" data-i18n="settings.langEnDesc">English interface</span>
-                </div>
-              </label>
-            </div>
+            </label>
+            <label class="settings-lang-card" data-lang="en">
+              <input type="radio" name="setting-language" value="en" class="settings-lang-radio">
+              <div class="settings-lang-indicator"></div>
+              <div class="settings-lang-text">
+                <span class="settings-lang-name">🇬🇧 English</span>
+                <span class="settings-lang-sub" data-i18n="settings.langEnDesc">English interface</span>
+              </div>
+            </label>
           </div>
         </div>
-
-        <!-- Tab Pane 2: Hotkeys & Snippets -->
-        <div class="settings-tab-pane" id="settings-pane-hotkeys" style="display: none;">
-          <!-- Sub-tabs bar: Buttons vs Snippets -->
-          <div class="hotkeys-header-bar">
-            <div class="hotkeys-subtabs-group">
-              <button type="button" class="hotkeys-subtab-btn active" data-subtab="buttons" id="hotkeys-subtab-btn-buttons">
-                <span data-i18n="settings.hotkeysTabButtons">Nút bấm giao diện</span>
-              </button>
-              <button type="button" class="hotkeys-subtab-btn" data-subtab="snippets" id="hotkeys-subtab-btn-snippets">
-                <span data-i18n="settings.hotkeysTabSnippets">Snippets tự custom</span>
-              </button>
-            </div>
-            <button type="button" class="btn btn-sm btn-primary" id="btn-add-new-snippet" style="display: none;" data-i18n="settings.snippetNewBtn">+ Tạo Snippet mới</button>
-          </div>
-
-          <!-- Search & Reset Toolbar -->
-          <div class="hotkeys-toolbar">
-            <div class="hotkeys-search-wrapper">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <input type="text" id="hotkeys-search-input" placeholder="Tìm phím tắt hoặc hành động..." data-i18n-placeholder="settings.hotkeysSearchPlaceholder" autocomplete="off">
-            </div>
-            <button type="button" class="btn btn-sm" id="btn-reset-all-hotkeys" data-i18n="settings.hotkeysResetAll">Khôi phục tất cả mặc định</button>
-          </div>
-
-          <!-- Conflict Warning Banner -->
-          <div id="hotkeys-conflict-alert" class="hotkeys-conflict-alert" style="display: none;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-            <span id="hotkeys-conflict-text"></span>
-            <button type="button" class="btn-conflict-dismiss" id="btn-dismiss-conflict">✕</button>
-          </div>
-
-          <!-- Sub-pane 1: Buttons Hotkeys List -->
-          <div class="hotkeys-subpane active" id="hotkeys-subpane-buttons">
-            <div class="hotkeys-list" id="hotkeys-buttons-list">
-              <!-- Dynamically populated button action rows -->
-            </div>
-          </div>
-
-          <!-- Sub-pane 2: Custom Snippets List -->
-          <div class="hotkeys-subpane" id="hotkeys-subpane-snippets" style="display: none;">
-            <div class="hotkeys-list" id="hotkeys-snippets-list">
-              <!-- Dynamically populated custom snippet rows -->
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Tạo / Sửa Snippet -->
-  <div id="snippet-dialog-backdrop" class="modal-backdrop" style="display: none;">
-    <div class="snippet-dialog paper-sheet">
-      <div class="snippet-dialog-header">
-        <h3 id="snippet-dialog-title" data-i18n="settings.snippetModalTitle">Tạo / Sửa Snippet</h3>
-        <button type="button" class="btn btn-icon" id="btn-close-snippet-dialog">✕</button>
-      </div>
-      <div class="snippet-dialog-body">
-        <div class="snippet-form-group">
-          <label for="snippet-input-name" data-i18n="settings.snippetNameLabel">Tên Snippet</label>
-          <input type="text" id="snippet-input-name" placeholder="Ví dụ: Heading 3, Task list..." data-i18n-placeholder="settings.snippetNamePlaceholder" autocomplete="off">
-        </div>
-        <div class="snippet-form-group">
-          <label for="snippet-input-text" data-i18n="settings.snippetContentLabel">Chuỗi ký tự cần chèn</label>
-          <textarea id="snippet-input-text" rows="3" placeholder="Ví dụ: ###  hoặc - [ ] " data-i18n-placeholder="settings.snippetContentPlaceholder" spellcheck="false"></textarea>
-        </div>
-      </div>
-      <div class="snippet-dialog-footer">
-        <button type="button" class="btn" id="btn-cancel-snippet-dialog" data-i18n="app.cancel">Hủy</button>
-        <button type="button" class="btn btn-primary" id="btn-save-snippet-dialog" data-i18n="settings.snippetSaveBtn">Lưu Snippet</button>
       </div>
     </div>
   </div>
 
   <!-- Scripts -->
   <script src="/static/marked.min.js"></script>
-  <script src="/static/highlight.min.js"></script>
-  <script src="/static/cm6-bundle.min.js?v=22"></script>
-  <script src="/static/i18n.js?v=22"></script>
-  <script type="module" src="/static/js/app.js?v=23"></script>
+  <script src="/static/i18n.js?v=23"></script>
+  <script src="/static/app.js?v=24"></script>
 </body>
 </html>
