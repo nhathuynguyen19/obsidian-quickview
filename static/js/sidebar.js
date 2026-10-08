@@ -12,7 +12,8 @@ export class SidebarController {
   constructor() {
     this.sidebar = document.getElementById('sidebar');
     this.btnToggle = document.getElementById('btn-toggle-sidebar');
-    this.tabs = document.querySelectorAll('.sidebar-tab');
+    this.tabs = this.sidebar ? this.sidebar.querySelectorAll('.sidebar-tab') : [];
+    this.panes = this.sidebar ? this.sidebar.querySelectorAll('.tab-pane') : [];
 
     this.treeContainer = document.getElementById('tree-container');
     this.recentContainer = document.getElementById('recent-container');
@@ -37,11 +38,11 @@ export class SidebarController {
     this.tabs.forEach(tab => {
       tab.addEventListener('click', () => {
         this.tabs.forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        this.panes.forEach(p => p.classList.remove('active'));
 
         tab.classList.add('active');
         const targetId = 'pane-' + tab.dataset.tab;
-        const targetPane = document.getElementById(targetId);
+        const targetPane = this.sidebar ? this.sidebar.querySelector('#' + targetId) : document.getElementById(targetId);
         if (targetPane) targetPane.classList.add('active');
       });
     });
@@ -68,25 +69,25 @@ export class SidebarController {
   }
 
   applyCoreSettings(settings) {
-    if (!settings) return;
-    const tabTree = document.querySelector('.sidebar-tab[data-tab="tree"]');
-    const tabRecent = document.querySelector('.sidebar-tab[data-tab="recent"]');
-    const tabTags = document.querySelector('.sidebar-tab[data-tab="tags"]');
+    if (!settings || !this.sidebar) return;
+    const tabTree = this.sidebar.querySelector('.sidebar-tab[data-tab="tree"]');
+    const tabRecent = this.sidebar.querySelector('.sidebar-tab[data-tab="recent"]');
+    const tabTags = this.sidebar.querySelector('.sidebar-tab[data-tab="tags"]');
 
     if (tabTree) tabTree.style.display = settings.folders !== false ? '' : 'none';
     if (tabRecent) tabRecent.style.display = settings.recent !== false ? '' : 'none';
     if (tabTags) tabTags.style.display = settings.tags !== false ? '' : 'none';
 
     // If active tab is now hidden, switch to first visible tab
-    const activeTab = document.querySelector('.sidebar-tab.active');
+    const activeTab = this.sidebar.querySelector('.sidebar-tab.active');
     if (activeTab && activeTab.style.display === 'none') {
       activeTab.classList.remove('active');
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      this.panes.forEach(p => p.classList.remove('active'));
 
       const firstVisible = Array.from(this.tabs).find(t => t.style.display !== 'none');
       if (firstVisible) {
         firstVisible.classList.add('active');
-        const targetPane = document.getElementById('pane-' + firstVisible.dataset.tab);
+        const targetPane = this.sidebar.querySelector('#pane-' + firstVisible.dataset.tab);
         if (targetPane) targetPane.classList.add('active');
       }
     }
@@ -170,9 +171,11 @@ export class SidebarController {
   }
 
   highlightActiveNote(path) {
-    document.querySelectorAll('.file-item, .recent-item').forEach(el => {
-      el.classList.toggle('active', el.dataset.path === path);
-    });
+    if (this.sidebar) {
+      this.sidebar.querySelectorAll('.file-item, .recent-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.path === path);
+      });
+    }
   }
 
   // --- Recent Notes ---

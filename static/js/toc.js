@@ -13,6 +13,7 @@ export class TocController {
     this.countBadge = document.getElementById('toc-count-badge');
     this.btnToggle = document.getElementById('btn-toggle-toc');
     this.btnClose = document.getElementById('btn-close-right-sidebar');
+    this.btnCollapseAll = document.getElementById('btn-collapse-all-toc');
 
     this.debounceTimer = null;
     this.editorInstance = null;
@@ -32,6 +33,12 @@ export class TocController {
     if (this.btnClose) {
       this.btnClose.addEventListener('click', () => {
         appState.setTocOpen(false);
+      });
+    }
+
+    if (this.btnCollapseAll) {
+      this.btnCollapseAll.addEventListener('click', () => {
+        this.toggleCollapseAll();
       });
     }
 
@@ -122,6 +129,97 @@ export class TocController {
     }, 250);
   }
 
+  toggleCollapseAll() {
+    if (!this.list) return;
+    const parentNodes = Array.from(this.list.querySelectorAll('.toc-node')).filter(n => n.querySelector('.toc-children'));
+    if (parentNodes.length === 0) return;
+
+    const anyExpanded = parentNodes.some(n => !n.classList.contains('collapsed'));
+    parentNodes.forEach(n => {
+      n.classList.toggle('collapsed', anyExpanded);
+    });
+  }
+
+  renderHeadingTree(headings, onItemClick) {
+    if (!this.list) return;
+
+    if (headings.length === 0) {
+      this.list.innerHTML = `<div class="toc-empty">${window.I18n ? window.I18n.t('toc.emptyNoHeadings') : 'Ghi chú không có tiêu đề'}</div>`;
+      if (this.countBadge) this.countBadge.textContent = '0';
+      return;
+    }
+
+    if (this.countBadge) this.countBadge.textContent = headings.length;
+    this.list.innerHTML = '';
+
+    // Stack to manage nested .toc-children containers
+    const stack = [{ level: 0, container: this.list }];
+
+    headings.forEach((h, index) => {
+      // Find parent container in stack whose level < h.level
+      while (stack.length > 1 && stack[stack.length - 1].level >= h.level) {
+        stack.pop();
+      }
+      const parentContainer = stack[stack.length - 1].container;
+
+      // Check if subsequent headings are descendants (level > h.level)
+      const nextHeading = headings[index + 1];
+      const hasChildren = nextHeading && nextHeading.level > h.level;
+
+      const nodeEl = document.createElement('div');
+      nodeEl.className = `toc-node toc-node-level-${h.level}`;
+
+      const rowEl = document.createElement('div');
+      rowEl.className = `toc-item-row toc-level-${h.level}`;
+
+      if (hasChildren) {
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'toc-collapse-btn';
+        toggleBtn.title = 'Thu gọn / Mở rộng nhóm tiêu đề';
+        toggleBtn.setAttribute('aria-label', 'Toggle section');
+        toggleBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+        toggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          nodeEl.classList.toggle('collapsed');
+        });
+        rowEl.appendChild(toggleBtn);
+      } else {
+        const spacer = document.createElement('span');
+        spacer.className = 'toc-collapse-spacer';
+        rowEl.appendChild(spacer);
+      }
+
+      const a = document.createElement('a');
+      a.className = `toc-item toc-level-${h.level}`;
+      if (h.id) a.dataset.targetId = h.id;
+      if (h.lineNumber) a.dataset.lineNumber = h.lineNumber;
+      a.textContent = h.text;
+      a.title = h.title || h.text;
+
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        onItemClick(h, a);
+      });
+
+      rowEl.appendChild(a);
+      nodeEl.appendChild(rowEl);
+
+      if (hasChildren) {
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'toc-children';
+        nodeEl.appendChild(childrenContainer);
+        parentContainer.appendChild(nodeEl);
+        stack.push({ level: h.level, container: childrenContainer });
+      } else {
+        parentContainer.appendChild(nodeEl);
+      }
+    });
+
+    this.updateActiveItem();
+  }
+
   generate() {
     if (!this.list || !appState.isCoreFeatureEnabled('outline')) return;
 
@@ -143,118 +241,107 @@ export class TocController {
             level: m[1].length,
             text: m[2].trim(),
             lineNumber: l,
-            lineFrom: line.from
+            lineFrom: line.from,
+            title: window.I18n
+              ? window.I18n.t('toc.lineJumpTitle', { line: l, title: m[2].trim() })
+              : `Dòng ${l}: ${m[2].trim()}`
           });
         }
       }
 
-      if (headings.length === 0) {
-        this.list.innerHTML = `<div class="toc-empty">${window.I18n ? window.I18n.t('toc.emptyNoHeadings') : 'Ghi chú không có tiêu đề'}</div>`;
-        if (this.countBadge) this.countBadge.textContent = '0';
-        return;
-      }
-
-      if (this.countBadge) this.countBadge.textContent = headings.length;
-      this.list.innerHTML = '';
-
       const editPreviewBody = document.getElementById('edit-preview-body');
       const cmEditorMount = document.getElementById('cm-editor-mount');
 
-      headings.forEach((h) => {
-        const a = document.createElement('a');
-        a.className = `toc-item toc-level-${h.level}`;
-        a.dataset.lineNumber = h.lineNumber;
-        a.textContent = h.text;
-        a.title = window.I18n
-          ? window.I18n.t('toc.lineJumpTitle', { line: h.lineNumber, title: h.text })
-          : `Dòng ${h.lineNumber}: ${h.text}`;
+      this.renderHeadingTree(headings, (h, a) => {
+        if (this.editorInstance) {
+          this.editorInstance.scrollToLine(h.lineNumber);
 
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          if (this.editorInstance) {
-            this.editorInstance.scrollToLine(h.lineNumber);
-
-            try {
-              if (cmEditorMount) {
-                const lineEls = cmEditorMount.querySelectorAll('.cm-line');
-                if (lineEls && lineEls[h.lineNumber - 1]) {
-                  const targetLine = lineEls[h.lineNumber - 1];
-                  targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  targetLine.classList.add('heading-highlight');
-                  setTimeout(() => targetLine.classList.remove('heading-highlight'), 1200);
-                }
-              }
-            } catch (_) {}
-
-            if (appState.currentEditMode === 'split' || appState.currentEditMode === 'preview') {
-              if (editPreviewBody) {
-                const previewHeadings = editPreviewBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                const targetPh = Array.from(previewHeadings).find(ph => ph.textContent.trim() === h.text);
-                if (targetPh) {
-                  targetPh.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  targetPh.classList.add('heading-highlight');
-                  setTimeout(() => targetPh.classList.remove('heading-highlight'), 1200);
-                }
+          try {
+            if (cmEditorMount) {
+              const lineEls = cmEditorMount.querySelectorAll('.cm-line');
+              if (lineEls && lineEls[h.lineNumber - 1]) {
+                const targetLine = lineEls[h.lineNumber - 1];
+                targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetLine.classList.add('heading-highlight');
+                setTimeout(() => targetLine.classList.remove('heading-highlight'), 1200);
               }
             }
+          } catch (_) {}
 
-            this.list.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
-            a.classList.add('active');
+          if (appState.currentEditMode === 'split' || appState.currentEditMode === 'preview') {
+            if (editPreviewBody) {
+              const previewHeadings = editPreviewBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+              const targetPh = Array.from(previewHeadings).find(ph => ph.textContent.trim() === h.text);
+              if (targetPh) {
+                targetPh.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                targetPh.classList.add('heading-highlight');
+                setTimeout(() => targetPh.classList.remove('heading-highlight'), 1200);
+              }
+            }
           }
-        });
 
-        this.list.appendChild(a);
+          this.list.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
+          this.list.querySelectorAll('.toc-item-row').forEach(el => el.classList.remove('active'));
+          a.classList.add('active');
+          a.closest('.toc-item-row')?.classList.add('active');
+        }
       });
-
-      this.updateActiveItem();
       return;
     }
 
     // Normal Reader Mode
     const noteBody = document.getElementById('note-body');
     if (!noteBody) return;
-    const headings = Array.from(noteBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+    const headingElements = Array.from(noteBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
 
-    if (headings.length === 0) {
-      this.list.innerHTML = `<div class="toc-empty">${window.I18n ? window.I18n.t('toc.emptyNoHeadings') : 'Ghi chú không có tiêu đề'}</div>`;
-      if (this.countBadge) this.countBadge.textContent = '0';
-      return;
-    }
-
-    if (this.countBadge) this.countBadge.textContent = headings.length;
-    this.list.innerHTML = '';
-
-    headings.forEach((h, index) => {
+    const headings = headingElements.map((h, index) => {
       if (!h.id) {
         const slug = h.textContent.trim().toLowerCase().replace(/[^\w\u00C0-\u024F\u1EA0-\u1EF9]+/g, '-');
         h.id = `heading-${index}-${slug}`.replace(/-+$/, '');
       }
-
-      const level = parseInt(h.tagName.substring(1), 10) || 1;
-      const a = document.createElement('a');
-      a.className = `toc-item toc-level-${level}`;
-      a.dataset.targetId = h.id;
-      a.textContent = h.textContent.trim();
-      a.title = h.textContent.trim();
-
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        h.classList.add('heading-highlight');
-        setTimeout(() => h.classList.remove('heading-highlight'), 1200);
-
-        this.list.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
-        a.classList.add('active');
-      });
-
-      this.list.appendChild(a);
+      return {
+        level: parseInt(h.tagName.substring(1), 10) || 1,
+        text: h.textContent.trim(),
+        id: h.id,
+        element: h,
+        title: h.textContent.trim()
+      };
     });
 
-    this.updateActiveItem();
+    this.renderHeadingTree(headings, (h, a) => {
+      h.element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      h.element.classList.add('heading-highlight');
+      setTimeout(() => h.element.classList.remove('heading-highlight'), 1200);
+
+      this.list.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
+      this.list.querySelectorAll('.toc-item-row').forEach(el => el.classList.remove('active'));
+      a.classList.add('active');
+      a.closest('.toc-item-row')?.classList.add('active');
+    });
   }
 
   updateActiveItem() {
     if (!this.list || !appState.isCoreFeatureEnabled('outline')) return;
+
+    const setActive = (activeLink) => {
+      if (!activeLink || activeLink.classList.contains('active')) return;
+      this.list.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
+      this.list.querySelectorAll('.toc-item-row').forEach(el => el.classList.remove('active'));
+      activeLink.classList.add('active');
+      activeLink.closest('.toc-item-row')?.classList.add('active');
+
+      // Auto-expand any collapsed ancestors so current active heading is visible
+      let parent = activeLink.closest('.toc-children');
+      while (parent) {
+        const node = parent.closest('.toc-node');
+        if (node && node.classList.contains('collapsed')) {
+          node.classList.remove('collapsed');
+        }
+        parent = node ? node.parentElement.closest('.toc-children') : null;
+      }
+
+      activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
 
     if (appState.isEditing) {
       const editContainer = document.getElementById('edit-container');
@@ -280,11 +367,7 @@ export class TocController {
       if (currentLineEl) {
         const text = currentLineEl.textContent.replace(/^#{1,6}\s+/, '').trim();
         const activeLink = Array.from(this.list.querySelectorAll('.toc-item')).find(a => a.textContent.trim() === text);
-        if (activeLink && !activeLink.classList.contains('active')) {
-          this.list.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
-          activeLink.classList.add('active');
-          activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
+        if (activeLink) setActive(activeLink);
       }
       return;
     }
@@ -306,11 +389,7 @@ export class TocController {
 
     if (currentHeading && currentHeading.id) {
       const activeLink = this.list.querySelector(`.toc-item[data-target-id="${currentHeading.id}"]`);
-      if (activeLink && !activeLink.classList.contains('active')) {
-        this.list.querySelectorAll('.toc-item').forEach(el => el.classList.remove('active'));
-        activeLink.classList.add('active');
-        activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
+      if (activeLink) setActive(activeLink);
     }
   }
 }

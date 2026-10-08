@@ -49,6 +49,7 @@
     "tabOutline": "Outline",
     "countTooltip": "Heading count",
     "closeSidebar": "Close right sidebar (Ctrl + Shift + O)",
+    "toggleCollapseAll": "Collapse / Expand all headings",
     "emptyNoNote": "No note selected",
     "emptyNoHeadings": "Note has no headings",
     "lineJumpTitle": "Line {line}: {title}"

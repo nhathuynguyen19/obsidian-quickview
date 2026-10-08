@@ -49,6 +49,7 @@
     "tabOutline": "Outline",
     "countTooltip": "Số lượng tiêu đề",
     "closeSidebar": "Đóng sidebar phải (Ctrl + Shift + O)",
+    "toggleCollapseAll": "Thu gọn / Mở rộng tất cả",
     "emptyNoNote": "Chưa chọn ghi chú nào",
     "emptyNoHeadings": "Ghi chú không có tiêu đề",
     "lineJumpTitle": "Dòng {line}: {title}"
