@@ -132,6 +132,24 @@
   font-size: 13px;
 }
 
+.embed-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.embed-note:hover {
+  background-color: var(--hover-bg, rgba(123, 104, 238, 0.08));
+  border-color: var(--accent-primary, #7b68ee);
+}
+
+.embed-note-icon {
+  color: var(--accent-primary, #7b68ee);
+  font-weight: bold;
+}
+
 .wikilink-attachment::before {
   content: "📎 ";
   font-size: 11px;

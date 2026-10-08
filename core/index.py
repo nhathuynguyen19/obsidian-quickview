@@ -80,10 +80,8 @@ class VaultIndex:
 
         if force:
             with conn:
-                conn.execute("DELETE FROM notes")
-                conn.execute("DELETE FROM links")
-                conn.execute("DELETE FROM attachments")
-                conn.execute("DELETE FROM notes_fts")
+                for tbl in ("notes", "links", "attachments", "notes_fts"):
+                    conn.execute(f"DELETE FROM {tbl}")
 
         cursor = conn.cursor()
         cursor.execute("SELECT path, mtime FROM notes")
@@ -92,36 +90,25 @@ class VaultIndex:
         cursor.execute("SELECT filename, mtime FROM attachments")
         existing_attachments = {row["filename"]: row["mtime"] for row in cursor.fetchall()}
 
-        current_notes = set()
-        current_attachments = set()
-
-        added_or_updated = 0
-        deleted_notes = 0
-
-        # Scan vault files
-        batch_counter = 0
+        current_notes, current_attachments = set(), set()
+        added_or_updated, deleted_notes, batch_counter = 0, 0, 0
         conn.execute("BEGIN TRANSACTION")
 
         for root, dirs, files in os.walk(self.vault_path):
             dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")]
-
             for file_name in files:
                 if file_name.startswith("."):
                     continue
-
                 full_path = os.path.join(root, file_name)
                 rel_path = os.path.relpath(full_path, self.vault_path)
-
                 try:
-                    mtime = os.path.getmtime(full_path)
-                    size = os.path.getsize(full_path)
+                    mtime, size = os.path.getmtime(full_path), os.path.getsize(full_path)
                 except OSError:
                     continue
 
                 if file_name.endswith(".md"):
                     current_notes.add(rel_path)
                     prev_mtime = existing_notes.get(rel_path)
-
                     if prev_mtime is None or abs(prev_mtime - mtime) > 0.001:
                         self._index_single_note(conn, rel_path, full_path, mtime, size)
                         added_or_updated += 1
@@ -133,32 +120,20 @@ class VaultIndex:
                     current_attachments.add(file_name)
                     prev_mtime = existing_attachments.get(file_name)
                     if prev_mtime is None or abs(prev_mtime - mtime) > 0.001:
-                        conn.execute(
-                            "INSERT OR REPLACE INTO attachments VALUES (?, ?, ?)",
-                            (file_name, rel_path, mtime)
-                        )
+                        conn.execute("INSERT OR REPLACE INTO attachments VALUES (?, ?, ?)", (file_name, rel_path, mtime))
 
-        # Remove deleted notes
         for removed_path in set(existing_notes.keys()) - current_notes:
             conn.execute("DELETE FROM notes WHERE path = ?", (removed_path,))
             conn.execute("DELETE FROM links WHERE source_path = ?", (removed_path,))
             conn.execute("DELETE FROM notes_fts WHERE path = ?", (removed_path,))
             deleted_notes += 1
 
-        # Remove deleted attachments
         for removed_att in set(existing_attachments.keys()) - current_attachments:
             conn.execute("DELETE FROM attachments WHERE filename = ?", (removed_att,))
 
         conn.commit()
         conn.close()
-
-        dur = time.time() - t0
-        return {
-            "total_notes": len(current_notes),
-            "updated": added_or_updated,
-            "deleted": deleted_notes,
-            "duration_ms": round(dur * 1000, 2),
-        }
+        return {"total_notes": len(current_notes), "updated": added_or_updated, "deleted": deleted_notes, "duration_ms": round((time.time() - t0) * 1000, 2)}
 
     def _index_single_note(self, conn: sqlite3.Connection, rel_path: str, full_path: str, mtime: float, size: int):
         """Parse frontmatter, tags, links, and insert into SQLite & FTS5."""
@@ -173,35 +148,17 @@ class VaultIndex:
         folder = os.path.dirname(rel_path) or "/"
 
         frontmatter, content = extract_frontmatter_and_content(raw_text)
-        tags_list = extract_tags(frontmatter, content)
-        tags_str = " ".join(tags_list)
-
+        tags_str = " ".join(extract_tags(frontmatter, content))
         aliases = frontmatter.get("aliases", [])
-        if isinstance(aliases, str):
-            aliases = [aliases]
-        aliases_str = " ".join([str(a) for a in aliases])
+        aliases_str = " ".join([str(a) for a in (aliases if isinstance(aliases, list) else [aliases])])
 
         conn.execute("DELETE FROM notes WHERE path = ?", (rel_path,))
         conn.execute("DELETE FROM links WHERE source_path = ?", (rel_path,))
         conn.execute("DELETE FROM notes_fts WHERE path = ?", (rel_path,))
-
-        conn.execute(
-            """INSERT INTO notes (path, title, title_norm, folder, mtime, size, tags, aliases, frontmatter)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (rel_path, title, title_norm, folder, mtime, size, tags_str, aliases_str, json.dumps(frontmatter, ensure_ascii=False))
-        )
-
-        wikilinks = extract_wikilinks(raw_text)
-        for link in wikilinks:
-            conn.execute(
-                "INSERT INTO links (source_path, target_title, anchor, is_embed) VALUES (?, ?, ?, ?)",
-                (rel_path, link["target"], link["anchor"], 1 if link["is_embed"] else 0)
-            )
-
-        conn.execute(
-            "INSERT INTO notes_fts (path, title, tags, content) VALUES (?, ?, ?, ?)",
-            (rel_path, title, tags_str, content)
-        )
+        conn.execute("INSERT INTO notes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (rel_path, title, title_norm, folder, mtime, size, tags_str, aliases_str, json.dumps(frontmatter, ensure_ascii=False)))
+        for link in extract_wikilinks(raw_text):
+            conn.execute("INSERT INTO links VALUES (?, ?, ?, ?)", (rel_path, link["target"], link["anchor"], 1 if link["is_embed"] else 0))
+        conn.execute("INSERT INTO notes_fts VALUES (?, ?, ?, ?)", (rel_path, title, tags_str, content))
 
     def search(self, query: str, mode: str = "title", limit: int = 50) -> List[Dict[str, Any]]:
         """Delegates search to the SearchEngine module."""
@@ -211,13 +168,17 @@ class VaultIndex:
         """Get full note content, metadata, and backlinks."""
         full_path = self._safe_note_path(rel_path)
         if not full_path or not os.path.exists(full_path):
-            return None
+            resolved = self.resolve_target(rel_path)
+            if resolved:
+                full_path = self._safe_note_path(resolved)
+                rel_path = resolved
+            if not full_path or not os.path.exists(full_path):
+                return None
 
         try:
             with open(full_path, "r", encoding="utf-8", errors="replace") as f:
                 raw_content = f.read()
-            mtime = os.path.getmtime(full_path)
-            size = os.path.getsize(full_path)
+            mtime, size = os.path.getmtime(full_path), os.path.getsize(full_path)
         except Exception:
             return None
 
@@ -225,7 +186,17 @@ class VaultIndex:
         frontmatter, content = extract_frontmatter_and_content(raw_content)
         tags = extract_tags(frontmatter, content)
 
-        # Get backlinks
+        try:
+            with self._get_connection() as conn_check:
+                cur = conn_check.cursor()
+                cur.execute("SELECT mtime FROM notes WHERE path = ?", (rel_path,))
+                r = cur.fetchone()
+                if not r or abs(r["mtime"] - mtime) > 0.001:
+                    self._index_single_note(conn_check, rel_path, full_path, mtime, size)
+                    conn_check.commit()
+        except Exception:
+            pass
+
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -278,30 +249,20 @@ class VaultIndex:
         base_filename = os.path.basename(target_norm)
         _, ext = os.path.splitext(base_filename)
 
-        # 1. If target explicitly has a non-markdown extension (e.g. .pdf, .png, etc.), prioritize attachments!
         if ext and ext.lower() != ".md":
-            cursor.execute(
-                "SELECT path FROM attachments WHERE lower(filename) = lower(?) OR lower(filename) = lower(?) OR lower(path) = lower(?) LIMIT 1",
-                (target_norm, base_filename, target_norm)
-            )
+            cursor.execute("SELECT path FROM attachments WHERE lower(filename) = lower(?) OR lower(filename) = lower(?) OR lower(path) = lower(?) LIMIT 1", (target_norm, base_filename, target_norm))
             row = cursor.fetchone()
             if row:
                 conn.close()
                 return row["path"]
 
-        # 2. Exact path match in notes
-        if not target_norm.endswith(".md"):
-            target_norm_md = target_norm + ".md"
-        else:
-            target_norm_md = target_norm
-
+        target_norm_md = target_norm if target_norm.endswith(".md") else (target_norm + ".md")
         cursor.execute("SELECT path FROM notes WHERE path = ? OR path = ? LIMIT 1", (target_norm, target_norm_md))
         row = cursor.fetchone()
         if row:
             conn.close()
             return row["path"]
 
-        # 3. Title match (case-insensitive) in notes
         base_title = os.path.splitext(base_filename)[0]
         cursor.execute("SELECT path FROM notes WHERE lower(title) = lower(?) LIMIT 1", (base_title,))
         row = cursor.fetchone()
@@ -309,17 +270,48 @@ class VaultIndex:
             conn.close()
             return row["path"]
 
-        # 4. Fallback check attachment (kể cả trường hợp chỉ ghi title không có đuôi .pdf)
-        cursor.execute(
-            "SELECT path FROM attachments WHERE lower(filename) = lower(?) OR lower(filename) = lower(?) OR lower(path) = lower(?) OR lower(filename) = lower(? || '.pdf') LIMIT 1",
-            (target_norm, base_filename, target_norm, base_title)
-        )
+        cursor.execute("SELECT path FROM attachments WHERE lower(filename) = lower(?) OR lower(filename) = lower(?) OR lower(path) = lower(?) OR lower(filename) = lower(? || '.pdf') LIMIT 1", (target_norm, base_filename, target_norm, base_title))
         row = cursor.fetchone()
         conn.close()
         if row:
             return row["path"]
 
+        # 5. On-disk fallback for files created manually in folders before reindexing
+        for cand in (target_norm, target_norm_md):
+            cand_full = self._safe_note_path(cand)
+            if cand_full and os.path.isfile(cand_full):
+                return self._index_and_return_rel(cand_full, base_filename)
+
+        if "/" not in target_norm and "\\" not in target_norm:
+            cand_names = {base_filename.lower(), (base_title + ".md").lower()}
+            for root, dirs, files in os.walk(self.vault_path):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in IGNORE_DIRS]
+                for f in files:
+                    if f.lower() in cand_names:
+                        return self._index_and_return_rel(os.path.join(root, f), f)
+        else:
+            for root, dirs, files in os.walk(self.vault_path):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in IGNORE_DIRS]
+                for f in files:
+                    rel_f = os.path.relpath(os.path.join(root, f), self.vault_path).replace("\\", "/").lower()
+                    if rel_f == target_norm.lower() or rel_f == target_norm_md.lower():
+                        return self._index_and_return_rel(os.path.join(root, f), f)
+
         return None
+
+    def _index_and_return_rel(self, full_p: str, filename: str) -> str:
+        rel = os.path.relpath(full_p, self.vault_path).replace("\\", "/")
+        try:
+            mtime, size = os.path.getmtime(full_p), os.path.getsize(full_p)
+            with self._get_connection() as c:
+                if rel.lower().endswith(".md"):
+                    self._index_single_note(c, rel, full_p, mtime, size)
+                else:
+                    c.execute("INSERT OR REPLACE INTO attachments VALUES (?, ?, ?)", (filename, rel, mtime))
+                c.commit()
+        except Exception:
+            pass
+        return rel
 
     def get_tree_level(self, folder: str = "") -> Dict[str, Any]:
         """Return one folder level for lazy file-tree rendering."""

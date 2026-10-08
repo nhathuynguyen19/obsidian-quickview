@@ -230,5 +230,31 @@ Hello world
         self.assertIn("Depth: 1", ctx1["context_markdown"])
         self.assertIn("````md", ctx1["context_markdown"])
 
+    def test_resolve_and_get_unindexed_note_in_folder(self):
+        idx = VaultIndex(vault_path=self.vault_dir, db_path=self.db_path)
+        idx.update_index()
+
+        # Create a new note manually in a subfolder WITHOUT calling update_index()
+        subfolder = os.path.join(self.vault_dir, "ManualFolder")
+        os.makedirs(subfolder, exist_ok=True)
+        manual_note_path = os.path.join(subfolder, "Manual Note.md")
+        with open(manual_note_path, "w", encoding="utf-8") as f:
+            f.write("# Manually Created\nContent inside manual note.")
+
+        # Test resolve_target with subfolder path
+        res_sub = idx.resolve_target("ManualFolder/Manual Note.md")
+        self.assertEqual(res_sub, "ManualFolder/Manual Note.md")
+
+        # Test resolve_target with just note title
+        res_title = idx.resolve_target("Manual Note")
+        self.assertEqual(res_title, "ManualFolder/Manual Note.md")
+
+        # Test get_note_by_path automatically resolves and returns content
+        note_data = idx.get_note_by_path("ManualFolder/Manual Note.md")
+        self.assertIsNotNone(note_data)
+        self.assertEqual(note_data["title"], "Manual Note")
+        self.assertIn("Content inside manual note", note_data["content"])
+
 if __name__ == "__main__":
     unittest.main()
+

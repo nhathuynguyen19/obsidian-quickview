@@ -217,7 +217,18 @@ echo "$VAR"
     console.log('✔ Test 17: Compact table separator dialect passed');
   }
 
-  console.log('\nAll 17 tests passed successfully! 🎉');
+  // Test 18: Markdown note embed ![[Folder/Note.md]] rendered as embed-note with wikilink
+  {
+    const md = 'Ghi chú liên quan: ![[Folder/Subnote.md|Xem ghi chú]]';
+    const html = renderMarkdown(md, 'test.md', global.marked, global.katex, (l, b) => renderLatex(l, b, global.katex));
+    assert(html.includes('class="embed-box embed-note"'), 'Test 18 Failed: embed-note class missing');
+    assert(html.includes('data-target="Folder/Subnote.md"'), 'Test 18 Failed: data-target missing on embed-note');
+    assert(html.includes('class="wikilink wikilink-embed"'), 'Test 18 Failed: wikilink-embed class missing');
+    assert(html.includes('>Xem ghi chú</a>'), 'Test 18 Failed: alias missing in embed link');
+    console.log('✔ Test 18: Markdown note embed rendered as embed-note wikilink passed');
+  }
+
+  console.log('\nAll 18 tests passed successfully! 🎉');
 }
 
 runTests();

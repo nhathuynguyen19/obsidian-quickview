@@ -210,17 +210,25 @@ export function renderMarkdown(rawMd, currentNotePath, customMarked, customKatex
   });
 
   const ATTACHMENT_EXT_REGEX = /\.(png|jpe?g|gif|svg|webp|bmp|ico|pdf|mp4|webm|ogv|mp3|wav|ogg|m4a|flac|doc|docx|xls|xlsx|ppt|pptx|zip|rar|7z|tar|gz|txt|csv)$/i;
+  const IMAGE_EXT_REGEX = /\.(png|jpe?g|gif|svg|webp|bmp)$/i;
 
-  // 6. Process Obsidian Embeds: ![[image.png]] or ![[image.png|300]]
+  // 6. Process Obsidian Embeds: ![[image.png]] or ![[file.pdf]] or ![[note.md]]
   md = md.replace(/!\[\[(.*?)\]\]/g, (match, inner) => {
     const parts = inner.split('|');
     const filename = parts[0].trim();
-    const extra = parts[1] ? `width="${parts[1].trim()}"` : '';
-    const isImg = /\.(png|jpe?g|gif|svg|webp|bmp)$/i.test(filename);
-    if (isImg) {
-      return `<a href="/vault/${encodeURI(filename)}" target="_blank" rel="noopener noreferrer" class="image-embed-link" title="Mở ảnh trên tab mới"><img src="/vault/${encodeURI(filename)}" alt="${filename}" ${extra} loading="lazy" onerror="this.onerror=null; this.src='/vault/images/${encodeURI(filename)}';" /></a>`;
+    const display = parts[1] ? parts[1].trim() : '';
+    const fileTarget = filename.split('#')[0].split('^')[0];
+
+    if (IMAGE_EXT_REGEX.test(fileTarget)) {
+      const extra = display ? `width="${display}"` : '';
+      return `<a href="/vault/${encodeURI(fileTarget)}" target="_blank" rel="noopener noreferrer" class="image-embed-link" title="Mở ảnh trên tab mới"><img src="/vault/${encodeURI(fileTarget)}" alt="${escapeAttr(fileTarget)}" ${extra} loading="lazy" onerror="this.onerror=null; this.src='/vault/images/${encodeURI(fileTarget)}';" /></a>`;
     }
-    return `<div class="embed-box">📄 Đính kèm: <a href="/vault/${encodeURI(filename)}" target="_blank" rel="noopener noreferrer">${filename}</a></div>`;
+
+    if (ATTACHMENT_EXT_REGEX.test(fileTarget)) {
+      return `<div class="embed-box">📄 Đính kèm: <a href="/vault/${encodeURI(fileTarget)}" target="_blank" rel="noopener noreferrer" data-target="${escapeAttr(filename)}">${escapeAttr(display || filename)}</a></div>`;
+    }
+
+    return `<div class="embed-box embed-note" data-target="${escapeAttr(filename)}"><span class="embed-note-icon">↳</span> <a class="wikilink wikilink-embed" href="#" data-target="${escapeAttr(filename)}">${escapeAttr(display || filename)}</a></div>`;
   });
 
   // 7. Process Obsidian Wikilinks: [[Target]] or [[Target|Alias]]

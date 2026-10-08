@@ -395,22 +395,11 @@ export class NoteViewerController {
       }
     }
 
-    // Embed box / attachment
-    const embedLink = e.target.closest('.embed-box a, .image-embed-link, .wikilink-attachment');
-    if (embedLink) {
+    // Embed note or wikilink click
+    const noteLink = e.target.closest('.embed-note[data-target], .wikilink[data-target]');
+    if (noteLink) {
       e.preventDefault();
-      const target = embedLink.dataset.target || embedLink.getAttribute('href');
-      if (target) {
-        ApiClient.openAttachment(target.replace(/^\/vault\//, ''));
-      }
-      return;
-    }
-
-    // Wikilink click
-    const wikilinkEl = e.target.closest('.wikilink');
-    if (wikilinkEl && wikilinkEl.dataset.target) {
-      e.preventDefault();
-      const target = wikilinkEl.dataset.target;
+      const target = noteLink.dataset.target;
       ApiClient.resolveTarget(target).then(res => {
         if (res && res.resolved_path) {
           if (res.is_attachment || !res.resolved_path.toLowerCase().endsWith('.md')) {
@@ -419,9 +408,24 @@ export class NoteViewerController {
             this.loadNote(res.resolved_path);
           }
         } else {
-          alert(`Không tìm thấy ghi chú hoặc tài liệu mục tiêu: [[${target}]]`);
+          const clean = (target || '').split('#')[0].replace(/^\/vault\//, '');
+          this.loadNote(clean.toLowerCase().endsWith('.md') ? clean : `${clean}.md`);
         }
+      }).catch(() => {
+        const clean = (target || '').split('#')[0].replace(/^\/vault\//, '');
+        this.loadNote(clean.toLowerCase().endsWith('.md') ? clean : `${clean}.md`);
       });
+      return;
+    }
+
+    // Embed box / attachment
+    const embedLink = e.target.closest('.embed-box a, .image-embed-link, .wikilink-attachment');
+    if (embedLink) {
+      e.preventDefault();
+      const target = embedLink.dataset.target || embedLink.getAttribute('href');
+      if (target) {
+        ApiClient.openAttachment(target.replace(/^\/vault\//, ''));
+      }
       return;
     }
   }
